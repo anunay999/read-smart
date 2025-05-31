@@ -29,6 +29,7 @@
       {
         "matches": ["<all_urls>"],
         "js": ["lib/Readability.js", "lib/marked.min.js", "content.js"],
+        "css": ["lib/tailwind.min.css"],
         "run_at": "document_end",
         "all_frames": false
       }

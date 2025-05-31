@@ -120,11 +120,14 @@
     
     .api-key-input {
       width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
       padding: 8px;
       border: 1px solid #ddd;
       border-radius: 4px;
       font-size: 13px;
       margin-bottom: 8px;
+      overflow: hidden;
     }
     
     .save-button {
@@ -151,7 +154,7 @@
     </div>
     
     <div class="toggle-container">
-      <span class="toggle-label">Smart Read Mode</span>
+      <span class="toggle-label">Read Mode</span>
       <label class="toggle-switch">
         <input type="checkbox" id="readerModeToggle">
         <span class="slider"></span>
@@ -159,7 +162,7 @@
     </div>
     
     <div class="toggle-container">
-      <span class="toggle-label">Rephrase with Gemini</span>
+      <span class="toggle-label">Smart Rephrase</span>
       <label class="toggle-switch">
         <input type="checkbox" id="rephraseToggle">
         <span class="slider"></span>

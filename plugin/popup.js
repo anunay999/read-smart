@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  // Load saved API key and rephrase toggle state
+  // Load saved API key and rephrase toggle states
   chrome.storage.sync.get(['geminiApiKey', 'rephraseWithGemini'], function(result) {
     if (result.geminiApiKey) {
       apiKeyInput.value = result.geminiApiKey;
@@ -47,9 +47,30 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Save rephrase toggle state
-  rephraseToggle.addEventListener('change', () => {
+  rephraseToggle.addEventListener('change', async () => {
     chrome.storage.sync.set({ rephraseWithGemini: rephraseToggle.checked });
+    // If toggled ON and reader mode is already active, rephrase in place
+    if (rephraseToggle.checked) {
+      const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+      if (tab) {
+        // Check if reader mode is active
+        const response = await chrome.tabs.sendMessage(tab.id, {action: "getState"});
+        if (response && response.readerModeActive) {
+          await chrome.tabs.sendMessage(tab.id, {action: "rephraseInReaderMode"});
+        }
+      }
+    } else {
+      // If toggled OFF and reader mode is already active, show original content
+      const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+      if (tab) {
+        const response = await chrome.tabs.sendMessage(tab.id, {action: "getState"});
+        if (response && response.readerModeActive) {
+          await chrome.tabs.sendMessage(tab.id, {action: "showOriginalInReaderMode"});
+        }
+      }
+    }
   });
+
 
   // Function to update UI state
   function updateUIState(isActive) {
@@ -87,7 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Send the toggle message with rephrase state
       const response = await chrome.tabs.sendMessage(tab.id, {
         action: "toggleReaderMode",
-        rephrase: rephraseToggle.checked
+        rephrase: rephraseToggle.checked,
       });
       console.log('Received response:', response);
       
