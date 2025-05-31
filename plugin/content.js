@@ -2,7 +2,7 @@
 console.log('Content script loaded');
 
 let readerModeActive = false;
-let originalContent = null;
+let overlay = null;
 
 // Notify that content script is ready
 chrome.runtime.sendMessage({action: "contentScriptReady"});
@@ -38,25 +38,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Main reader mode functions
 async function enableReaderMode() {
   try {
-    console.log('Starting enableReaderMode');
-    
-    // Save original content
-    originalContent = {
-      html: document.documentElement.innerHTML,
-      title: document.title,
-      url: window.location.href
-    };
-    
-    console.log('Saved original content');
-    
     // Extract content using Readability
     const article = await extractContentWithReadability();
-    console.log('Content extracted:', article ? 'success' : 'failed');
-    
     if (article) {
-      renderReaderView(article);
+      renderReaderOverlay(article);
       readerModeActive = true;
-      console.log('Reader view rendered');
     }
   } catch (error) {
     console.error('Error in enableReaderMode:', error);
@@ -65,33 +51,31 @@ async function enableReaderMode() {
 }
 
 function disableReaderMode() {
-  if (originalContent) {
-    document.open();
-    document.write(originalContent.html);
-    document.close();
-    document.title = originalContent.title;
-    readerModeActive = false;
+  if (overlay) {
+    overlay.remove();
+    overlay = null;
   }
+  // Restore original content visibility
+  Array.from(document.body.children).forEach(child => {
+    if (child.id !== 'read-smart-overlay') {
+      child.style.display = '';
+    }
+  });
+  readerModeActive = false;
 }
 
 // Content extraction
 async function extractContentWithReadability() {
   // Create a clone of the document to work with
   const documentClone = document.cloneNode(true);
-  
-  // Create a new Readability object
   const reader = new Readability(documentClone, {
     charThreshold: 20,
     classesToPreserve: ['important', 'highlight']
   });
-  
-  // Parse the document
   const article = reader.parse();
-  
   if (!article) {
     throw new Error('Could not extract article content');
   }
-  
   return {
     title: article.title,
     content: article.content,
@@ -102,66 +86,34 @@ async function extractContentWithReadability() {
 }
 
 // View rendering
-function renderReaderView(article) {
-  const readerHTML = `
-    <html>
-    <head>
-      <title>${article.title}</title>
-      <style>
-        body {
-          font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-          line-height: 1.6;
-          max-width: 800px;
-          margin: 0 auto;
-          padding: 20px;
-          color: #333;
-          background: #fff;
-        }
-        img { 
-          max-width: 100%; 
-          height: auto; 
-          margin: 1rem 0;
-          display: block;
-        }
-        h1 { 
-          font-size: 2rem;
-          margin-bottom: 1.5rem;
-          color: #1a1a1a;
-        }
-        h2 { 
-          font-size: 1.5rem;
-          margin: 1.5rem 0 1rem;
-          color: #2a2a2a;
-        }
-        p {
-          margin: 1rem 0;
-          font-size: 1.1rem;
-        }
-        a { 
-          color: #0066cc;
-          text-decoration: none;
-        }
-        a:hover {
-          text-decoration: underline;
-        }
-        .important {
-          background-color: #fff3cd;
-          padding: 0.2rem;
-        }
-        .highlight {
-          background-color: #d4edda;
-          padding: 0.2rem;
-        }
-      </style>
-    </head>
-    <body>
-      <h1>${article.title}</h1>
+function renderReaderOverlay(article) {
+  // Hide all body children except the overlay
+  Array.from(document.body.children).forEach(child => {
+    if (child.id !== 'read-smart-overlay') {
+      child.style.display = 'none';
+    }
+  });
+
+  // Remove existing overlay if present
+  if (overlay) overlay.remove();
+
+  overlay = document.createElement('div');
+  overlay.id = 'read-smart-overlay';
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100vw';
+  overlay.style.height = '100vh';
+  overlay.style.overflow = 'auto';
+  overlay.style.background = '#fff';
+  overlay.style.zIndex = '2147483647';
+  overlay.style.boxShadow = '0 0 0 9999px rgba(0,0,0,0.1)';
+
+  overlay.innerHTML = `
+    <div style="max-width: 800px; margin: 40px auto; padding: 32px; background: #fff; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,0.08);">
+      <h1 style="font-size: 2rem; margin-bottom: 1.5rem; color: #1a1a1a;">${article.title}</h1>
       <div id="reader-content">${article.content}</div>
-    </body>
-    </html>
+    </div>
   `;
-  
-  document.open();
-  document.write(readerHTML);
-  document.close();
+  document.body.appendChild(overlay);
 }
