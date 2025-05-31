@@ -1,94 +1,167 @@
-// Content script that will be injected into the page
-let readerModeActive = false;
-let originalHTML = '';
+// content.js - A modular reader mode implementation
+console.log('Content script loaded');
 
-// Listen for messages from popup or background script
+let readerModeActive = false;
+let originalContent = null;
+
+// Notify that content script is ready
+chrome.runtime.sendMessage({action: "contentScriptReady"});
+
+// Message handling
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('Content script received message:', request);
+  
   if (request.action === "toggleReaderMode") {
+    console.log('Toggling reader mode, current state:', readerModeActive);
+    
     if (!readerModeActive) {
-      enableReaderMode();
+      console.log('Attempting to enable reader mode');
+      enableReaderMode().then(() => {
+        console.log('Reader mode enabled successfully');
+        sendResponse({readerModeActive: true});
+      }).catch(error => {
+        console.error('Error enabling reader mode:', error);
+        sendResponse({error: error.message});
+      });
     } else {
+      console.log('Disabling reader mode');
       disableReaderMode();
+      sendResponse({readerModeActive: false});
     }
-    sendResponse({success: true, readerModeActive});
+  } else if (request.action === "getState") {
+    console.log('Sending current state:', readerModeActive);
+    sendResponse({readerModeActive});
   }
   return true;
 });
 
-// Function to enable reader mode
-function enableReaderMode() {
-  // Save original HTML for restoration later
-  originalHTML = document.documentElement.innerHTML;
-  
-  // Create a new article parser using Mozilla's Readability
-  const documentClone = document.cloneNode(true);
-  const readability = new Readability(documentClone);
-  const article = readability.parse();
-  
-  if (article) {
-    // Create reader view HTML
-    const readerHTML = `
-      <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>${article.title}</title>
-        <style>
-          body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-            line-height: 1.6;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            color: #333;
-            background: #fff;
-          }
-          .reader-content {
-            font-size: 1.125rem;
-          }
-          img {
-            max-width: 100%;
-            height: auto;
-            display: block;
-            margin: 1.5rem 0;
-          }
-          h1 {
-            font-size: 1.8rem;
-            margin-top: 0;
-          }
-          h2 {
-            font-size: 1.5rem;
-          }
-          a {
-            color: #0066cc;
-          }
-          @media (prefers-color-scheme: dark) {
-            body {
-              background: #222;
-              color: #eee;
-            }
-            a {
-              color: #88bbff;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <h1>${article.title}</h1>
-        <div class="reader-content">${article.content}</div>
-      </body>
-      </html>
-    `;
+// Main reader mode functions
+async function enableReaderMode() {
+  try {
+    console.log('Starting enableReaderMode');
     
-    // Replace the page content
-    document.documentElement.innerHTML = readerHTML;
-    readerModeActive = true;
+    // Save original content
+    originalContent = {
+      html: document.documentElement.innerHTML,
+      title: document.title,
+      url: window.location.href
+    };
+    
+    console.log('Saved original content');
+    
+    // Extract content using Readability
+    const article = await extractContentWithReadability();
+    console.log('Content extracted:', article ? 'success' : 'failed');
+    
+    if (article) {
+      renderReaderView(article);
+      readerModeActive = true;
+      console.log('Reader view rendered');
+    }
+  } catch (error) {
+    console.error('Error in enableReaderMode:', error);
+    throw error;
   }
 }
 
-// Function to disable reader mode
 function disableReaderMode() {
-  if (originalHTML) {
-    document.documentElement.innerHTML = originalHTML;
+  if (originalContent) {
+    document.open();
+    document.write(originalContent.html);
+    document.close();
+    document.title = originalContent.title;
     readerModeActive = false;
   }
+}
+
+// Content extraction
+async function extractContentWithReadability() {
+  // Create a clone of the document to work with
+  const documentClone = document.cloneNode(true);
+  
+  // Create a new Readability object
+  const reader = new Readability(documentClone, {
+    charThreshold: 20,
+    classesToPreserve: ['important', 'highlight']
+  });
+  
+  // Parse the document
+  const article = reader.parse();
+  
+  if (!article) {
+    throw new Error('Could not extract article content');
+  }
+  
+  return {
+    title: article.title,
+    content: article.content,
+    textContent: article.textContent,
+    length: article.length,
+    excerpt: article.excerpt
+  };
+}
+
+// View rendering
+function renderReaderView(article) {
+  const readerHTML = `
+    <html>
+    <head>
+      <title>${article.title}</title>
+      <style>
+        body {
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+          line-height: 1.6;
+          max-width: 800px;
+          margin: 0 auto;
+          padding: 20px;
+          color: #333;
+          background: #fff;
+        }
+        img { 
+          max-width: 100%; 
+          height: auto; 
+          margin: 1rem 0;
+          display: block;
+        }
+        h1 { 
+          font-size: 2rem;
+          margin-bottom: 1.5rem;
+          color: #1a1a1a;
+        }
+        h2 { 
+          font-size: 1.5rem;
+          margin: 1.5rem 0 1rem;
+          color: #2a2a2a;
+        }
+        p {
+          margin: 1rem 0;
+          font-size: 1.1rem;
+        }
+        a { 
+          color: #0066cc;
+          text-decoration: none;
+        }
+        a:hover {
+          text-decoration: underline;
+        }
+        .important {
+          background-color: #fff3cd;
+          padding: 0.2rem;
+        }
+        .highlight {
+          background-color: #d4edda;
+          padding: 0.2rem;
+        }
+      </style>
+    </head>
+    <body>
+      <h1>${article.title}</h1>
+      <div id="reader-content">${article.content}</div>
+    </body>
+    </html>
+  `;
+  
+  document.open();
+  document.write(readerHTML);
+  document.close();
 }

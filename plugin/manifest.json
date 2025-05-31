@@ -3,7 +3,14 @@
     "name": "Read Smart",
     "version": "1.0",
     "description": "Extracts main content from web pages like reader mode",
-    "permissions": ["activeTab", "scripting"],
+    "permissions": [
+      "activeTab",
+      "scripting",
+      "tabs"
+    ],
+    "host_permissions": [
+      "<all_urls>"
+    ],
     "action": {
       "default_popup": "popup.html",
       "default_icon": {
@@ -13,18 +20,20 @@
       }
     },
     "background": {
-      "service_worker": "background.js"
+      "service_worker": "background.js",
+      "type": "module"
     },
     "content_scripts": [
       {
         "matches": ["<all_urls>"],
-        "js": ["content.js"],
-        "run_at": "document_idle"
+        "js": ["lib/Readability.js", "content.js"],
+        "run_at": "document_end",
+        "all_frames": false
       }
     ],
     "web_accessible_resources": [
       {
-        "resources": ["lib/Readability.js", "styles.css"],
+        "resources": ["styles.css"],
         "matches": ["<all_urls>"]
       }
     ]
