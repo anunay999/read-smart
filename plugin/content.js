@@ -152,7 +152,7 @@ function renderReaderOverlay(article, isMarkdown = false) {
   overlay.id = 'read-smart-overlay';
   overlay.className = 'fixed inset-0 w-screen h-screen overflow-auto bg-[#f4ecd8] z-[2147483647]';
   overlay.innerHTML = `
-    <div class="max-w-3xl mx-auto my-10 p-8 bg-transparent rounded-xl shadow-lg font-serif leading-relaxed text-[#3e2f1c]">
+    <div class="max-w-4xl mx-auto my-10 p-8 bg-transparent rounded-xl shadow-lg font-serif leading-relaxed text-[#3e2f1c]">
       <h1 class="text-3xl mb-8 text-[#5b4636] font-bold tracking-tight">${article.title}</h1>
       <div id="reader-content" class="prose prose-lg prose-neutral">
         ${isMarkdown && window.marked ? window.marked.parse(article.content) : article.content}
@@ -169,7 +169,7 @@ function showSkeletonOverlay() {
   overlay.id = 'read-smart-overlay';
   overlay.className = 'fixed inset-0 w-screen h-screen overflow-auto bg-[#f4ecd8] z-[2147483647] flex items-center';
   overlay.innerHTML = `
-    <div class="max-w-3xl w-full mx-auto p-8 bg-transparent rounded-xl shadow-lg animate-pulse">
+    <div class="max-w-4xl w-full mx-auto p-8 bg-transparent rounded-xl shadow-lg animate-pulse">
       <div class="h-10 w-3/5 bg-[#e0d6c3] rounded mb-6"></div>
       <div class="h-5 w-full bg-[#e0d6c3] rounded mb-4"></div>
       <div class="h-5 w-full bg-[#e0d6c3] rounded mb-4"></div>
