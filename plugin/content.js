@@ -68,6 +68,18 @@ function disableReaderMode() {
 async function extractContentWithReadability() {
   // Create a clone of the document to work with
   const documentClone = document.cloneNode(true);
+
+  // Fix lazy-loaded images in the clone
+  const imgs = documentClone.querySelectorAll('img');
+  imgs.forEach(img => {
+    if (!img.getAttribute('src')) {
+      const dataSrc = img.getAttribute('data-src') || img.getAttribute('data-original') || img.getAttribute('data-lazy-src');
+      if (dataSrc) {
+        img.setAttribute('src', dataSrc);
+      }
+    }
+  });
+
   const reader = new Readability(documentClone, {
     charThreshold: 20,
     classesToPreserve: ['important', 'highlight']
@@ -105,15 +117,41 @@ function renderReaderOverlay(article) {
   overlay.style.width = '100vw';
   overlay.style.height = '100vh';
   overlay.style.overflow = 'auto';
-  overlay.style.background = '#fff';
+  overlay.style.background = '#f4ecd8'; // Sepia
   overlay.style.zIndex = '2147483647';
   overlay.style.boxShadow = '0 0 0 9999px rgba(0,0,0,0.1)';
 
   overlay.innerHTML = `
-    <div style="max-width: 800px; margin: 40px auto; padding: 32px; background: #fff; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,0.08);">
-      <h1 style="font-size: 2rem; margin-bottom: 1.5rem; color: #1a1a1a;">${article.title}</h1>
-      <div id="reader-content">${article.content}</div>
+    <div style="max-width: 800px; margin: 40px auto; padding: 32px; background: transparent; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,0.08); font-family: 'Georgia', 'Times New Roman', Times, serif; line-height: 1.8; color: #3e2f1c;">
+      <h1 style="font-size: 2.2rem; margin-bottom: 2rem; color: #5b4636; font-weight: 700; letter-spacing: 0.01em;">${article.title}</h1>
+      <div id="reader-content" style="font-size: 1.18rem;">
+        ${article.content}
+      </div>
     </div>
+    <style>
+      #reader-content p {
+        margin: 1.3em 0;
+        letter-spacing: 0.01em;
+      }
+      #reader-content h2, #reader-content h3 {
+        margin-top: 2em;
+        margin-bottom: 1em;
+        color: #7a5c3e;
+        font-weight: 600;
+      }
+      #reader-content a {
+        color: #b05e19;
+        text-decoration: underline;
+      }
+      #reader-content img {
+        display: block;
+        margin: 2em auto;
+        max-width: 100%;
+        height: auto;
+        border-radius: 6px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      }
+    </style>
   `;
   document.body.appendChild(overlay);
 }
