@@ -1,4 +1,4 @@
-# Read Smart - Focus Mode Chrome Extension
+# Read Smart - Focus Mode
 
 ### 1 • Why does this need to exist?
 
