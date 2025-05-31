@@ -47,21 +47,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Main reader mode functions
 async function enableReaderMode(rephrase = true) {
   try {
-    // Show floating skeleton loader (does not hide DOM)
-    showFloatingSkeletonLoader();
-    // Extract content using Readability
+    // Extract content using Readability (no skeleton, no DOM hiding yet)
     const article = await extractContentWithReadability();
-    removeFloatingSkeletonLoader();
     let isMarkdown = false;
     if (article) {
-      // Now hide DOM and show overlay
       if (rephrase) {
+        // Show overlay with skeleton loader and hide DOM
+        showSkeletonOverlay();
         // Rephrase content using Gemini Pro
         const rephrasedContent = await rephraseWithGemini(article.textContent);
         article.content = rephrasedContent;
         isMarkdown = true;
+        renderReaderOverlay(article, isMarkdown);
+      } else {
+        // Show overlay with extracted content (hide DOM)
+        renderReaderOverlay(article, isMarkdown);
       }
-      renderReaderOverlay(article, isMarkdown);
       readerModeActive = true;
     }
   } catch (error) {
@@ -172,6 +173,48 @@ function renderReaderOverlay(article, isMarkdown = false) {
         height: auto;
         border-radius: 6px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      }
+    </style>
+  `;
+  document.body.appendChild(overlay);
+}
+
+// Show skeleton loader overlay and hide DOM
+function showSkeletonOverlay() {
+  // Hide all body children except the overlay
+  Array.from(document.body.children).forEach(child => {
+    if (child.id !== 'read-smart-overlay') {
+      child.style.display = 'none';
+    }
+  });
+
+  // Remove existing overlay if present
+  if (overlay) overlay.remove();
+
+  overlay = document.createElement('div');
+  overlay.id = 'read-smart-overlay';
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100vw';
+  overlay.style.height = '100vh';
+  overlay.style.overflow = 'auto';
+  overlay.style.background = '#f4ecd8'; // Sepia
+  overlay.style.zIndex = '2147483647';
+  overlay.style.boxShadow = '0 0 0 9999px rgba(0,0,0,0.1)';
+
+  overlay.innerHTML = `
+    <div class="skeleton-loader" style="max-width: 800px; margin: 40px auto; padding: 32px; background: transparent; border-radius: 12px;">
+      <div class="skeleton-title" style="height: 2.2rem; width: 60%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
+      <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
+      <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
+      <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
+    </div>
+    <style>
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
       }
     </style>
   `;
