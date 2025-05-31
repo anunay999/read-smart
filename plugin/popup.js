@@ -2,11 +2,54 @@
 document.addEventListener('DOMContentLoaded', () => {
   const readerModeToggle = document.getElementById('readerModeToggle');
   const statusText = document.getElementById('statusText');
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  const saveApiKeyButton = document.getElementById('saveApiKey');
+  const rephraseToggle = document.getElementById('rephraseToggle');
   
-  if (!readerModeToggle || !statusText) {
+  if (!readerModeToggle || !statusText || !apiKeyInput || !saveApiKeyButton || !rephraseToggle) {
     console.error('Required elements not found!');
     return;
   }
+
+  // Load saved API key and rephrase toggle state
+  chrome.storage.sync.get(['geminiApiKey', 'rephraseWithGemini'], function(result) {
+    if (result.geminiApiKey) {
+      apiKeyInput.value = result.geminiApiKey;
+    }
+    rephraseToggle.checked = result.rephraseWithGemini !== false; // default ON
+  });
+
+  // Save API key
+  saveApiKeyButton.addEventListener('click', async () => {
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) {
+      alert('Please enter a valid API key');
+      return;
+    }
+
+    try {
+      await chrome.storage.sync.set({ geminiApiKey: apiKey });
+      
+      // Update the API key in the content script
+      const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+      if (tab) {
+        await chrome.tabs.sendMessage(tab.id, {
+          action: "updateApiKey",
+          apiKey: apiKey
+        });
+      }
+      
+      alert('API key saved successfully!');
+    } catch (error) {
+      console.error('Error saving API key:', error);
+      alert('Error saving API key. Please try again.');
+    }
+  });
+
+  // Save rephrase toggle state
+  rephraseToggle.addEventListener('change', () => {
+    chrome.storage.sync.set({ rephraseWithGemini: rephraseToggle.checked });
+  });
 
   // Function to update UI state
   function updateUIState(isActive) {
@@ -41,8 +84,11 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Content script might already be injected:', error);
       }
       
-      // Send the toggle message
-      const response = await chrome.tabs.sendMessage(tab.id, {action: "toggleReaderMode"});
+      // Send the toggle message with rephrase state
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        action: "toggleReaderMode",
+        rephrase: rephraseToggle.checked
+      });
       console.log('Received response:', response);
       
       if (response) {

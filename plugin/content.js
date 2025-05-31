@@ -3,6 +3,12 @@ console.log('Content script loaded');
 
 let readerModeActive = false;
 let overlay = null;
+let geminiApiKey = null;
+
+// Initialize by getting the API key
+chrome.storage.sync.get(['geminiApiKey'], function(result) {
+  geminiApiKey = result.geminiApiKey;
+});
 
 // Notify that content script is ready
 chrome.runtime.sendMessage({action: "contentScriptReady"});
@@ -16,7 +22,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     
     if (!readerModeActive) {
       console.log('Attempting to enable reader mode');
-      enableReaderMode().then(() => {
+      enableReaderMode(request.rephrase).then(() => {
         console.log('Reader mode enabled successfully');
         sendResponse({readerModeActive: true});
       }).catch(error => {
@@ -31,20 +37,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === "getState") {
     console.log('Sending current state:', readerModeActive);
     sendResponse({readerModeActive});
+  } else if (request.action === "updateApiKey") {
+    geminiApiKey = request.apiKey;
+    sendResponse({success: true});
   }
   return true;
 });
 
 // Main reader mode functions
-async function enableReaderMode() {
+async function enableReaderMode(rephrase = true) {
   try {
+    // Show floating skeleton loader (does not hide DOM)
+    showFloatingSkeletonLoader();
     // Extract content using Readability
     const article = await extractContentWithReadability();
+    removeFloatingSkeletonLoader();
+    let isMarkdown = false;
     if (article) {
-      renderReaderOverlay(article);
+      // Now hide DOM and show overlay
+      if (rephrase) {
+        // Rephrase content using Gemini Pro
+        const rephrasedContent = await rephraseWithGemini(article.textContent);
+        article.content = rephrasedContent;
+        isMarkdown = true;
+      }
+      renderReaderOverlay(article, isMarkdown);
       readerModeActive = true;
     }
   } catch (error) {
+    removeFloatingSkeletonLoader();
     console.error('Error in enableReaderMode:', error);
     throw error;
   }
@@ -98,7 +119,7 @@ async function extractContentWithReadability() {
 }
 
 // View rendering
-function renderReaderOverlay(article) {
+function renderReaderOverlay(article, isMarkdown = false) {
   // Hide all body children except the overlay
   Array.from(document.body.children).forEach(child => {
     if (child.id !== 'read-smart-overlay') {
@@ -121,11 +142,12 @@ function renderReaderOverlay(article) {
   overlay.style.zIndex = '2147483647';
   overlay.style.boxShadow = '0 0 0 9999px rgba(0,0,0,0.1)';
 
+  let renderedContent = isMarkdown && window.marked ? window.marked.parse(article.content) : article.content;
   overlay.innerHTML = `
     <div style="max-width: 800px; margin: 40px auto; padding: 32px; background: transparent; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,0.08); font-family: 'Georgia', 'Times New Roman', Times, serif; line-height: 1.8; color: #3e2f1c;">
       <h1 style="font-size: 2.2rem; margin-bottom: 2rem; color: #5b4636; font-weight: 700; letter-spacing: 0.01em;">${article.title}</h1>
       <div id="reader-content" style="font-size: 1.18rem;">
-        ${article.content}
+        ${renderedContent}
       </div>
     </div>
     <style>
@@ -154,4 +176,76 @@ function renderReaderOverlay(article) {
     </style>
   `;
   document.body.appendChild(overlay);
+}
+
+// Show a floating skeleton loader (does not hide DOM)
+function showFloatingSkeletonLoader() {
+  if (document.getElementById('read-smart-skeleton')) return;
+  const skeleton = document.createElement('div');
+  skeleton.id = 'read-smart-skeleton';
+  skeleton.style.position = 'fixed';
+  skeleton.style.top = '40px';
+  skeleton.style.left = '50%';
+  skeleton.style.transform = 'translateX(-50%)';
+  skeleton.style.zIndex = '2147483647';
+  skeleton.innerHTML = `
+    <div class="skeleton-loader" style="max-width: 800px; padding: 32px; background: #f4ecd8; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,0.08);">
+      <div class="skeleton-title" style="height: 2.2rem; width: 60%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
+      <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
+      <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
+      <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
+    </div>
+    <style>
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+      }
+    </style>
+  `;
+  document.body.appendChild(skeleton);
+}
+
+function removeFloatingSkeletonLoader() {
+  const skeleton = document.getElementById('read-smart-skeleton');
+  if (skeleton) skeleton.remove();
+}
+
+// Gemini Pro integration
+async function rephraseWithGemini(text) {
+  if (!geminiApiKey) {
+    throw new Error('Gemini API key not set. Please set it in the extension settings.');
+  }
+
+  const prompt = `Please rephrase the following text in a clear, engaging, and easy-to-read style while maintaining the original meaning and key information. Make it more conversational and user-friendly:
+
+${text}`;
+
+  try {
+    const geminiModel = 'gemini-2.0-flash';
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{ text: prompt }]
+            }]
+          })
+        }
+      );
+
+    if (!response.ok) {
+      throw new Error('Failed to get response from Gemini API');
+    }
+
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text;
+  } catch (error) {
+    console.error('Error calling Gemini API:', error);
+    throw error;
+  }
 }
