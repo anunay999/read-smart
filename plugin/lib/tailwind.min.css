@@ -1,0 +1,53 @@
+/* Basic Tailwind CSS with Prose plugin */
+/* Generated based on typical small builds */
+
+/* Base styles */
+/* ... (a lot of base styles omitted for brevity) ... */
+
+/* Some common utility classes used in the overlay */
+.fixed { position: fixed; }
+.inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+.w-screen { width: 100vw; }
+.h-screen { height: 100vh; }
+.overflow-auto { overflow: auto; }
+.bg-\[\#f4ecd8\] { background-color: #f4ecd8; }
+.z-\[2147483647\] { z-index: 2147483647; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.max-w-3xl { max-width: 48rem; /* 800px */ }
+.max-w-4xl { max-width: 64rem; /* 1024px */ }
+.mx-auto { margin-left: auto; margin-right: auto; }
+.my-10 { margin-top: 2.5rem; margin-bottom: 2.5rem; }
+.p-8 { padding: 2rem; }
+.bg-transparent { background-color: transparent; }
+.rounded-xl { border-radius: 0.75rem; }
+.shadow-lg { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+.font-serif { font-family: Georgia, Cambria, "Times New Roman", Times, serif; }
+.leading-relaxed { line-height: 1.625; }
+.text-\[\#3e2f1c\] { color: #3e2f1c; }
+.text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
+.mb-8 { margin-bottom: 2rem; }
+.text-\[\#5b4636\] { color: #5b4636; }
+.font-bold { font-weight: 700; }
+.tracking-tight { letter-spacing: -0.025em; }
+.w-full { width: 100%; }
+.w-3\/5 { width: 60%; }
+.h-10 { height: 2.5rem; }
+.h-5 { height: 1.25rem; }
+.mb-6 { margin-bottom: 1.5rem; }
+.mb-4 { margin-bottom: 1rem; }
+.rounded { border-radius: 0.25rem; }
+.bg-\[\#e0d6c3\] { background-color: #e0d6c3; }
+.animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+
+/* Prose plugin styles */
+.prose h1 { font-size: 2.2rem; margin-bottom: 2rem; color: #5b4636; font-weight: 700; letter-spacing: 0.01em; }
+.prose p { margin: 1.3em 0; letter-spacing: 0.01em; }
+.prose h2, .prose h3 { margin-top: 2em; margin-bottom: 1em; color: #7a5c3e; font-weight: 600; }
+.prose a { color: #b05e19; text-decoration: underline; }
+.prose img { display: block; margin: 2em auto; max-width: 100%; height: auto; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+
+/* Add other prose styles as needed based on the original CSS */
+/* ... (more prose styles omitted for brevity) ... */ 
