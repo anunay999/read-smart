@@ -2,57 +2,116 @@
 console.log('Content script loaded');
 
 // --- State ---
+
+/**
+ * Makes a POST request to the Mem0 API to store memories.
+ * @param {string} apiKey - Your Mem0 API key (do NOT hardcode in production).
+ * @param {Array<{role: string, content: string}>} messages - The chat/message history.
+ * @param {string} userId - The user ID for the request.
+ * @returns {Promise<Object>} - Resolves to the API response JSON.
+ */
+async function sendMem0Memory(apiKey, messages, userId) {
+  const url = 'https://api.mem0.ai/v1/memories/';
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Token ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ messages, user_id: userId, metadata: { source: 'read-smart', article_url: window.location.href } }),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Mem0 API error: ${response.status} ${errorText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Searches memories in Mem0 using the search API.
+ * @param {string} apiKey - Your Mem0 API key.
+ * @param {string} query - The search query string.
+ * @param {string} userId - The user ID to filter by.
+ * @returns {Promise<Object>} - Resolves to the API response JSON.
+ */
+async function searchMem0Memories(apiKey, query, userId) {
+  const url = 'https://api.mem0.ai/v2/memories/search/';
+  const payload = JSON.stringify({
+    query,
+    filters: {
+      AND: [
+        { user_id: userId }
+      ]
+    }
+  });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Token ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: payload,
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Mem0 Search API error: ${response.status} ${errorText}`);
+  }
+  return response.json();
+}
+
 let readerModeActive = false;
 let overlay = null;
 let geminiApiKey = null;
 let originalArticle = null;
 let rephrasedContent = null;
+const mem0ApiKey = '';
+const userId = 'read-smart';
 
 // --- Initialization ---
-chrome.storage.sync.get(['geminiApiKey'], function(result) {
+chrome.storage.sync.get(['geminiApiKey'], function (result) {
   geminiApiKey = result.geminiApiKey;
 });
 
 // Notify that content script is ready
-chrome.runtime.sendMessage({action: "contentScriptReady"});
+chrome.runtime.sendMessage({ action: "contentScriptReady" });
 
 // --- Message Handling ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Content script received message:', request);
-  
+
   if (request.action === "toggleReaderMode") {
     if (!readerModeActive) {
       enableReaderMode(request.rephrase).then(() => {
-        sendResponse({readerModeActive: true});
+        sendResponse({ readerModeActive: true });
       }).catch(error => {
-        sendResponse({error: error.message});
+        sendResponse({ error: error.message });
       });
     } else {
       disableReaderMode();
-      sendResponse({readerModeActive: false});
+      sendResponse({ readerModeActive: false });
     }
   } else if (request.action === "getState") {
-    sendResponse({readerModeActive});
+    sendResponse({ readerModeActive });
   } else if (request.action === "updateApiKey") {
     geminiApiKey = request.apiKey;
-    sendResponse({success: true});
+    sendResponse({ success: true });
   } else if (request.action === "rephraseInReaderMode") {
     if (readerModeActive && originalArticle) {
       showSkeletonOverlay();
       // TODO: Use custom API if enabled
-      rephraseWithGemini(originalArticle.textContent).then(markdown => {
+      knowledgeAnalyseAndRephrase(originalArticle.textContent.slice(0, 200)).then(markdown => {
         rephrasedContent = markdown;
         renderReaderOverlay({
           title: originalArticle.title,
           content: rephrasedContent
         }, true);
-        sendResponse({success: true});
+        sendResponse({ success: true });
       }).catch(error => {
-        sendResponse({error: error.message});
+        sendResponse({ error: error.message });
       });
       return true;
     } else {
-      sendResponse({error: 'Reader mode not active or no original article'});
+      sendResponse({ error: 'Reader mode not active or no original article' });
     }
   } else if (request.action === "showOriginalInReaderMode") {
     if (readerModeActive && originalArticle) {
@@ -60,9 +119,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         title: originalArticle.title,
         content: originalArticle.content
       }, false);
-      sendResponse({success: true});
+      sendResponse({ success: true });
     } else {
-      sendResponse({error: 'Reader mode not active or no original article'});
+      sendResponse({ error: 'Reader mode not active or no original article' });
     }
   }
   return true;
@@ -195,7 +254,7 @@ function removeOverlay() {
 async function rephraseWithGemini(text) {
   if (!geminiApiKey) throw new Error('Gemini API key not set. Please set it in the extension settings.');
   const prompt = `Please rephrase the following text in a clear, engaging, and easy-to-read style while maintaining the original meaning and key information. Make it more conversational and user-friendly:\n\n${text}`;
-  const geminiModel = 'gemini-2.0-flash';
+  const geminiModel = 'gemini-2.0-flash-lite';
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`, {
       method: 'POST',
@@ -207,6 +266,89 @@ async function rephraseWithGemini(text) {
     if (!response.ok) throw new Error('Failed to get response from Gemini API');
     const data = await response.json();
     return data.candidates[0].content.parts[0].text;
+  } catch (error) {
+    throw error;
+  }
+}
+
+
+async function convertPhrasesToMem0FormatMessages(phrases) {
+  const messages = phrases.map(phrase => ({
+    role: 'user',
+    content: phrase.phrase,
+  }));
+  return messages;
+}
+
+
+
+// --- KnowledgeAnalyseAndRephrase ---
+async function knowledgeAnalyseAndRephrase(text) {
+  if (!geminiApiKey) throw new Error('Gemini API key not set. Please set it in the extension settings.');
+  const prompt = `Given the following text, extract important phrases (rephrase them if needed) and provide a summary of the text in json list format. e.g [{"phrase": phrase/rephrased}].\n\nText:\n${text}`;
+  const geminiModel = 'gemini-2.0-flash-lite';
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                phrase: { type: 'string' }
+              },
+              required: ['phrase']
+            }
+          }
+        }
+      })
+    });
+    if (!response.ok) throw new Error('Failed to get response from Gemini API');
+    const data = await response.json();
+    const text = data.candidates[0].content.parts[0].text;
+    let cleanedText = text.trim();
+    if (cleanedText.startsWith('"') && cleanedText.endsWith('"')) {
+      cleanedText = cleanedText.slice(1, -1);
+      cleanedText = cleanedText.replace(/\\"/g, '"');
+    }
+    let parsedData;
+    try {
+      parsedData = await convertPhrasesToMem0FormatMessages(JSON.parse(cleanedText));
+
+      // For each of the phrases, search if its related exists in memory
+      let mem0SearchData = [];
+      let memoryMissingPhrases = [];
+      for (const phrase of parsedData) {
+        responseMem0Search = await searchMem0Memories(mem0ApiKey, phrase.content, userId);
+        console.log("responseMem0Search:::::::::::::::::", responseMem0Search);
+        if (responseMem0Search.count === 0) {
+          memoryMissingPhrases.push(phrase);
+        } else {
+          mem0SearchData.push(responseMem0Search);
+        }
+      }
+
+      if (memoryMissingPhrases.length > 0) {
+        try {
+          const responseMem0 = await sendMem0Memory(mem0ApiKey, memoryMissingPhrases, userId);
+          console.log("responseMem0:::::::::::::::::", responseMem0);
+        } catch (e) {
+          console.error('Failed to send memory to Mem0:', e);
+          throw e;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse JSON:', cleanedText, e);
+      throw e;
+    }
+    console.log('parsedData:::::::::::::::::', parsedData);
+
+    return cleanedText;
   } catch (error) {
     throw error;
   }
