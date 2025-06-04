@@ -2,57 +2,60 @@
 console.log('Content script loaded');
 
 // --- State ---
+
 let readerModeActive = false;
 let overlay = null;
 let geminiApiKey = null;
 let originalArticle = null;
 let rephrasedContent = null;
+const mem0ApiKey = '';
+const userId = 'read-smart';
 
 // --- Initialization ---
-chrome.storage.sync.get(['geminiApiKey'], function(result) {
+chrome.storage.sync.get(['geminiApiKey'], function (result) {
   geminiApiKey = result.geminiApiKey;
 });
 
 // Notify that content script is ready
-chrome.runtime.sendMessage({action: "contentScriptReady"});
+chrome.runtime.sendMessage({ action: "contentScriptReady" });
 
 // --- Message Handling ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Content script received message:', request);
-  
+
   if (request.action === "toggleReaderMode") {
     if (!readerModeActive) {
       enableReaderMode(request.rephrase).then(() => {
-        sendResponse({readerModeActive: true});
+        sendResponse({ readerModeActive: true });
       }).catch(error => {
-        sendResponse({error: error.message});
+        sendResponse({ error: error.message });
       });
     } else {
       disableReaderMode();
-      sendResponse({readerModeActive: false});
+      sendResponse({ readerModeActive: false });
     }
   } else if (request.action === "getState") {
-    sendResponse({readerModeActive});
+    sendResponse({ readerModeActive });
   } else if (request.action === "updateApiKey") {
     geminiApiKey = request.apiKey;
-    sendResponse({success: true});
+    sendResponse({ success: true });
   } else if (request.action === "rephraseInReaderMode") {
     if (readerModeActive && originalArticle) {
       showSkeletonOverlay();
       // TODO: Use custom API if enabled
-      rephraseWithGemini(originalArticle.textContent).then(markdown => {
+      knowledgeAnalyseAndRephrase(originalArticle.textContent.slice(0, 500)).then(markdown => {
         rephrasedContent = markdown;
         renderReaderOverlay({
           title: originalArticle.title,
           content: rephrasedContent
         }, true);
-        sendResponse({success: true});
+        sendResponse({ success: true });
       }).catch(error => {
-        sendResponse({error: error.message});
+        sendResponse({ error: error.message });
       });
       return true;
     } else {
-      sendResponse({error: 'Reader mode not active or no original article'});
+      sendResponse({ error: 'Reader mode not active or no original article' });
     }
   } else if (request.action === "showOriginalInReaderMode") {
     if (readerModeActive && originalArticle) {
@@ -60,9 +63,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         title: originalArticle.title,
         content: originalArticle.content
       }, false);
-      sendResponse({success: true});
+      sendResponse({ success: true });
     } else {
-      sendResponse({error: 'Reader mode not active or no original article'});
+      sendResponse({ error: 'Reader mode not active or no original article' });
     }
   }
   return true;
@@ -195,7 +198,7 @@ function removeOverlay() {
 async function rephraseWithGemini(text) {
   if (!geminiApiKey) throw new Error('Gemini API key not set. Please set it in the extension settings.');
   const prompt = `Please rephrase the following text in a clear, engaging, and easy-to-read style while maintaining the original meaning and key information. Make it more conversational and user-friendly:\n\n${text}`;
-  const geminiModel = 'gemini-2.0-flash';
+  const geminiModel = 'gemini-2.0-flash-lite';
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`, {
       method: 'POST',
@@ -207,6 +210,252 @@ async function rephraseWithGemini(text) {
     if (!response.ok) throw new Error('Failed to get response from Gemini API');
     const data = await response.json();
     return data.candidates[0].content.parts[0].text;
+  } catch (error) {
+    throw error;
+  }
+}
+
+
+async function convertRelationsToMem0FormatMessages(relations) {
+  const messages = relations.map(phrase => ({
+    role: 'user',
+    content: phrase.relation,
+  }));
+  return messages;
+}
+
+
+/* Makes a POST request to the Mem0 API to store memories. */
+async function sendMem0Memory(apiKey, messages, userId, metadata) {
+  const url = 'https://api.mem0.ai/v1/memories/';
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Token ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ messages, user_id: userId, metadata: { source: 'read-smart', article_url: window.location.href, ...metadata } }),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Mem0 API error: ${response.status} ${errorText}`);
+  }
+  return response.json();
+}
+
+/* Searches memories in Mem0 using the search API. */
+async function searchMem0Memories(apiKey, query, userId) {
+  const url = 'https://api.mem0.ai/v2/memories/search/';
+  const payload = JSON.stringify({
+    query,
+    filters: {
+      AND: [
+        { user_id: userId }
+      ]
+    }
+  });
+  console.log('Searching Mem0 memories with query:', payload);
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Token ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: payload,
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Mem0 Search API error: ${response.status} ${errorText}`);
+  }
+  return response.json();
+}
+
+
+async function getContentContextTags(text) {
+  if (!geminiApiKey) throw new Error('Gemini API key not set. Please set it in the extension settings.');
+  const prompt = `Given the following text, generate UPTO 10 tags to help with the context: ["tag1", "tag2", ...].\n\nText:\n${text}`;
+  const geminiModel = 'gemini-2.0-flash-lite';
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'array',
+            items: {
+              type: 'string'
+            }
+          }
+        }
+      })
+    });
+    if (!response.ok) throw new Error('Failed to get response from Gemini API');
+    const data = await response.json();
+    let cleanedText = await extractCleanedText(data.candidates[0].content.parts[0].text);
+
+    let parsedData = [];
+    try {
+      parsedData = JSON.parse(cleanedText);
+    } catch (e) {
+      console.error('Failed to parse JSON:', cleanedText, e);
+      throw e;
+    }
+    return parsedData;
+  } catch (error) {
+    throw error;
+  }
+}
+
+async function extractCleanedText(text) {
+  let cleanedText = text.trim();
+  if (cleanedText.startsWith('"') && cleanedText.endsWith('"')) {
+    cleanedText = cleanedText.slice(1, -1);
+    cleanedText = cleanedText.replace(/\\"/g, '"');
+  }
+  return cleanedText;
+}
+
+
+
+// --- KnowledgeAnalyseAndRephrase ---
+
+async function knowledgeBasedContentRephrase(text, currentKnowledgeRelations, oldKnowledgeMemories) {
+  if (!geminiApiKey) throw new Error('Gemini API key not set. Please set it in the extension settings.');
+
+  if (!currentKnowledgeRelations || !oldKnowledgeMemories) {
+    console.log('No knowledge relations provided, skipping rephrase');
+    return text;
+  }
+  if (!Array.isArray(currentKnowledgeRelations) || !Array.isArray(oldKnowledgeMemories)) {
+    console.log('Knowledge relations must be arrays');
+    return text;
+  }
+  if (currentKnowledgeRelations.length === 0 && oldKnowledgeMemories.length === 0) {
+    console.log('No knowledge relations provided, skipping rephrase');
+    return text;
+  }
+
+  let currentKnowledgeRelationsReformatted = currentKnowledgeRelations.map(rel => {
+    if (typeof rel === 'string') {
+      return rel;
+    } else if (typeof rel === 'object' && rel.relation) {
+      return rel.relation;
+    } else {
+      throw new Error('Invalid current knowledge relation format');
+    }
+  }).join('\n');
+  console.log('Current knowledge relations reformatted:', currentKnowledgeRelationsReformatted);
+
+  let formattedOldKnowledgeMemories = [];
+  for (const rel of oldKnowledgeMemories) {
+    formattedOldKnowledgeMemories.push(rel.memory + ' \n ' + `ref: ${rel.metadata.article_url}`);
+  }
+  console.log('Formatted old knowledge memories:', formattedOldKnowledgeMemories);
+
+  const prompt = `Given the knowledge relations of current text, historical knowledge relations (with refs), rephrase the provided text with info which is only new to this text and referencing historical links provided where duplicates.
+  \nText Knowledge relations:\n${currentKnowledgeRelationsReformatted}.
+  \nHistorical Knowledge relations:\n${formattedOldKnowledgeMemories.join('\n')}.
+  \nText to rephrase:\n${text}\n\nRephrased text maintain original content's style. Also add links to historical knowledge relations where applicable and end of the output.
+  \nRephrased text:`;
+
+  console.log('Knowledge Analyse and Rephrase called with prompt:', prompt);
+  const responseText = await callGeminiAPI(prompt, {});
+
+  // TODO: maybe add refs links towards the end.
+  // TODO: figure out formatting.
+
+  return await extractCleanedText(responseText);
+}
+
+
+async function callGeminiAPI(prompt, additionalBody = {}) {
+  if (!geminiApiKey) throw new Error('Gemini API key not set. Please set it in the extension settings.');
+  const geminiModel = 'gemini-2.0-flash-lite';
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        ...additionalBody
+      })
+    });
+    if (!response.ok) throw new Error('Failed to get response from Gemini API');
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text;
+  } catch (error) {
+    throw error;
+  }
+}
+
+async function knowledgeAnalyseAndRephrase(text) {
+  if (!geminiApiKey) throw new Error('Gemini API key not set. Please set it in the extension settings.');
+  const prompt = `Given the following text, extract the knowledge graphs relationships encapsulating the information. Return the relationships as: [{"relation": "EntityA > relationship > Entity2"}, ..].\n\nText:\n${text}`;
+  const geminiModel = 'gemini-2.0-flash-lite';
+  try {
+    const responseText = await callGeminiAPI(prompt, {
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              relation: { type: 'string' }
+            },
+            required: ['relation']
+          }
+        }
+      }
+    });
+    console.log('Response from Gemini:', responseText);
+    let cleanedText = await extractCleanedText(responseText);
+    let jsonParsedCleanedText = JSON.parse(cleanedText);
+    let parsedData;
+    const contentContextTags = await getContentContextTags(text);
+    let finalMemoriesData = [];
+    try {
+      parsedData = await convertRelationsToMem0FormatMessages(jsonParsedCleanedText);
+      console.log('Parsed data:', parsedData);
+
+      // For each of the phrases, search if its related exists in memory
+      let mem0SearchData = {};
+      let memoryMissingPhrases = [];
+      for (const phrase of parsedData) {
+        responseMem0Search = await searchMem0Memories(mem0ApiKey, phrase.content, userId);
+        console.log('responseMem0Search for ', phrase.content, ':', responseMem0Search);
+        if (responseMem0Search.length === 0) {
+          memoryMissingPhrases.push(phrase);
+        } else {
+          for (index = 0; index < responseMem0Search.length; index++) {
+            const memory = responseMem0Search[index];
+            if (!mem0SearchData[memory.id]) {
+              mem0SearchData[memory.id] = memory;
+            }
+          }
+        }
+      }
+
+      finalMemoriesData = Object.values(mem0SearchData);
+      if (memoryMissingPhrases.length > 0) {
+        console.log('Sending missing phrases to Mem0:', memoryMissingPhrases);
+        try {
+          const responseMem0 = await sendMem0Memory(mem0ApiKey, memoryMissingPhrases, userId, { contentContextTags });
+        } catch (e) {
+          console.error('Failed to send memory to Mem0:', e);
+          throw e;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse JSON:', cleanedText, e);
+      throw e;
+    }
+
+    console.log('Final rephrase using knowledge:', jsonParsedCleanedText, finalMemoriesData);
+    return await knowledgeBasedContentRephrase(text, jsonParsedCleanedText, finalMemoriesData);
   } catch (error) {
     throw error;
   }
