@@ -64,7 +64,3 @@ async function rephraseWithCustomAPI(text) {
 - [Tailwind CSS](https://tailwindcss.com/) (for UI styling)
 
 ---
-
-## 📌 TODO
-- [ ]  Implement your custom API in `rephraseWithCustomAPI` in `content.js`
----

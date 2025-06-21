@@ -11,7 +11,8 @@
     ],
     "host_permissions": [
       "<all_urls>",
-      "https://generativelanguage.googleapis.com/*"
+      "https://generativelanguage.googleapis.com/*",
+      "https://api.mem0.ai/*"
     ],
     "action": {
       "default_popup": "popup.html",
@@ -28,8 +29,15 @@
     "content_scripts": [
       {
         "matches": ["<all_urls>"],
-        "js": ["lib/Readability.js", "lib/marked.min.js", "content.js"],
-        "css": ["lib/tailwind.min.css"],
+        "js": [
+          "lib/Readability.js", 
+          "lib/marked.min.js", 
+          "lib/memory-enhanced-reading.js", 
+          "content.js"
+        ],
+        "css": [
+          "lib/tailwind.min.css"
+        ],
         "run_at": "document_end",
         "all_frames": false
       }

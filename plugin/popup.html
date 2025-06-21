@@ -2,56 +2,115 @@
 <html>
 <head>
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
-      width: 300px;
-      padding: 16px;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      width: 380px;
+      background: #1a1a1a;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.4;
     }
     
     .container {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
+      padding: 24px;
     }
     
     .header {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
+      gap: 16px;
+      padding-bottom: 24px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid #333;
     }
     
     .header img {
-      width: 24px;
-      height: 24px;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
     }
     
     .header h1 {
-      font-size: 18px;
-      margin: 0;
-      color: #1a1a1a;
+      font-size: 28px;
+      font-weight: 600;
+      color: #ffffff;
     }
     
-    .toggle-container {
+    .settings-button {
+      background: #2a2a2a;
+      color: #ffffff;
+      border: none;
+      padding: 16px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+      margin-bottom: 24px;
+    }
+    
+    .settings-button:hover {
+      background: #333;
+      transform: translateY(-1px);
+    }
+    
+    .feature-section {
+      margin-bottom: 32px;
+    }
+    
+    .section-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #ffffff;
+      margin-bottom: 16px;
+    }
+    
+    .feature-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: #f5f5f5;
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 8px;
+      background: #2a2a2a;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 12px;
+      transition: all 0.2s;
     }
     
-    .toggle-label {
-      font-size: 14px;
-      color: #4a4a4a;
+    .feature-item:hover {
+      background: #333;
+    }
+    
+    .feature-info {
+      flex: 1;
+    }
+    
+    .feature-title {
+      font-size: 16px;
+      font-weight: 500;
+      color: #ffffff;
+      margin-bottom: 4px;
+    }
+    
+    .feature-description {
+      font-size: 13px;
+      color: #888;
+      line-height: 1.3;
     }
     
     .toggle-switch {
       position: relative;
       display: inline-block;
-      width: 44px;
-      height: 24px;
+      width: 52px;
+      height: 28px;
+      margin-left: 16px;
+      flex-shrink: 0;
     }
     
     .toggle-switch input {
@@ -67,118 +126,348 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background-color: #ccc;
-      transition: .4s;
-      border-radius: 24px;
+      background-color: #4a4a4a;
+      transition: 0.3s ease;
+      border-radius: 28px;
     }
     
     .slider:before {
       position: absolute;
       content: "";
-      height: 18px;
-      width: 18px;
-      left: 3px;
-      bottom: 3px;
+      height: 20px;
+      width: 20px;
+      left: 4px;
+      bottom: 4px;
       background-color: white;
-      transition: .4s;
+      transition: 0.3s ease;
       border-radius: 50%;
     }
     
     input:checked + .slider {
-      background-color: #2196F3;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
     }
     
     input:checked + .slider:before {
-      transform: translateX(20px);
+      transform: translateX(24px);
     }
     
     .status {
-      font-size: 13px;
-      color: #666;
       text-align: center;
-      margin-top: 8px;
-    }
-    
-    .active {
-      color: #2196F3;
-      font-weight: 500;
-    }
-    
-    .api-key-container {
-      margin-top: 16px;
+      font-size: 14px;
+      color: #888;
+      margin: 16px 0;
       padding: 12px;
-      background: #f5f5f5;
+      background: #2a2a2a;
       border-radius: 8px;
+      transition: all 0.2s;
+    }
+    
+    .status.active {
+      color: #a855f7;
+      background: rgba(168, 85, 247, 0.1);
+    }
+    
+    .action-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    
+    .action-btn {
+      background: #2a2a2a;
+      color: #ffffff;
+      border: none;
+      padding: 16px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .action-btn:hover {
+      background: #333;
+      transform: translateY(-1px);
+    }
+    
+    .action-btn.primary {
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+    }
+    
+    .action-btn.primary:hover {
+      background: linear-gradient(135deg, #6d28d9, #9333ea);
+    }
+    
+    .action-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      pointer-events: none;
+    }
+    
+    .toggle-switch input:disabled + .slider {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .feature-item.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.8);
+      backdrop-filter: blur(4px);
+    }
+    
+    .modal-content {
+      background: #1a1a1a;
+      margin: 5% auto;
+      padding: 0;
+      border-radius: 20px;
+      width: 420px;
+      max-width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      max-height: 90vh;
+      overflow: hidden;
+      border: 1px solid #333;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 24px 16px 24px;
+      border-bottom: 1px solid #333;
+    }
+    
+    .modal-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+    
+    .close {
+      color: #888;
+      font-size: 24px;
+      font-weight: normal;
+      cursor: pointer;
+      border: none;
+      background: none;
+      padding: 8px;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+    
+    .close:hover {
+      color: #fff;
+      background: #333;
+    }
+    
+    .modal-body {
+      padding: 24px;
+    }
+    
+    .api-key-group {
+      margin-bottom: 24px;
     }
     
     .api-key-label {
       font-size: 14px;
-      color: #4a4a4a;
+      color: #ffffff;
       margin-bottom: 8px;
       display: block;
+      font-weight: 500;
     }
     
     .api-key-input {
       width: 100%;
-      min-width: 0;
-      box-sizing: border-box;
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 13px;
-      margin-bottom: 8px;
-      overflow: hidden;
+      padding: 12px 16px;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 12px;
+      font-size: 14px;
+      color: #ffffff;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      transition: all 0.2s;
     }
     
-    .save-button {
-      background: #2196F3;
-      color: white;
+    .api-key-input:focus {
+      outline: none;
+      border-color: #7c3aed;
+      background: #333;
+      box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+    }
+    
+    .api-key-input::placeholder {
+      color: #666;
+    }
+    
+    .modal-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      padding: 16px 24px 24px 24px;
+      border-top: 1px solid #333;
+    }
+    
+    .modal-button {
+      padding: 12px 24px;
       border: none;
-      padding: 8px 16px;
-      border-radius: 4px;
+      border-radius: 12px;
       cursor: pointer;
-      font-size: 13px;
-      width: 100%;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
     }
     
-    .save-button:hover {
-      background: #1976D2;
+    .modal-button.cancel {
+      background: #2a2a2a;
+      color: #888;
+    }
+    
+    .modal-button.cancel:hover {
+      background: #333;
+      color: #fff;
+    }
+    
+    .modal-button.save {
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: white;
+    }
+    
+    .modal-button.save:hover {
+      background: linear-gradient(135deg, #6d28d9, #9333ea);
+      transform: translateY(-1px);
+    }
+    
+    .modal-button.save:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .api-status {
+      font-size: 12px;
+      margin-top: 8px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-weight: 500;
+    }
+    
+    .api-status.configured {
+      background: rgba(34, 197, 94, 0.1);
+      color: #22c55e;
+    }
+    
+    .api-status.missing {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
+
+    .shortcut {
+      text-align: center;
+      margin-top: 20px;
+      padding: 16px;
+      border-top: 1px solid #333;
+      font-size: 12px;
+      color: #666;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <img src="icons/icon48.png" alt="Read Smart">
-      <h1>Read Smart</h1>
+      <img src="icons/icon48.png" alt="read smart">
+      <h1>read smart</h1>
     </div>
     
-    <div class="toggle-container">
-      <span class="toggle-label">Read Mode</span>
-      <label class="toggle-switch">
-        <input type="checkbox" id="readerModeToggle">
-        <span class="slider"></span>
-      </label>
-    </div>
+    <button class="settings-button" id="configButton">
+      Settings
+    </button>
     
-    <div class="toggle-container">
-      <span class="toggle-label">Smart Rephrase</span>
-      <label class="toggle-switch">
-        <input type="checkbox" id="rephraseToggle">
-        <span class="slider"></span>
-      </label>
+    <div class="feature-section">
+      <div class="section-title">Reading Features</div>
+      
+      <div class="feature-item">
+        <div class="feature-info">
+          <div class="feature-title">Reader Mode</div>
+          <div class="feature-description">Clean, distraction-free reading experience</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="readerModeToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+      
+      <div class="feature-item">
+        <div class="feature-info">
+          <div class="feature-title">Smart Rephrase</div>
+          <div class="feature-description">AI-powered content simplification</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="rephraseToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
     </div>
     
     <div class="status" id="statusText">
       Normal reading mode
     </div>
 
-    <div class="api-key-container">
-      <label class="api-key-label">Gemini API Key</label>
-      <input type="password" id="apiKeyInput" class="api-key-input" placeholder="Enter your Gemini API key">
-      <button id="saveApiKey" class="save-button">Save API Key</button>
+    <div class="action-buttons">
+      <button id="memoryButton" class="action-btn primary">
+        Add to Memory
+      </button>
+      <button id="dashboardButton" class="action-btn">
+        View Memory
+      </button>
     </div>
   </div>
+  
+  <!-- Configuration Modal -->
+  <div id="configModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">API Configuration</h2>
+        <button class="close" id="closeModal">&times;</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="api-key-group">
+          <label class="api-key-label">Gemini API Key</label>
+          <input type="password" id="geminiApiKeyInput" class="api-key-input" placeholder="Enter your Gemini API key">
+          <div id="geminiStatus" class="api-status missing">Not configured</div>
+        </div>
+        
+        <div class="api-key-group">
+          <label class="api-key-label">Mem0 API Key</label>
+          <input type="password" id="mem0ApiKeyInput" class="api-key-input" placeholder="Enter your Mem0 API key">
+          <div id="mem0Status" class="api-status missing">Not configured</div>
+        </div>
+      </div>
+      
+      <div class="modal-buttons">
+        <button id="cancelConfig" class="modal-button cancel">Cancel</button>
+        <button id="saveConfig" class="modal-button save">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+  
   <script src="popup.js"></script>
 </body>
 </html>

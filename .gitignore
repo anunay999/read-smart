@@ -174,3 +174,6 @@ cython_debug/
 .pypirc
 
 *.DS_Store
+
+# YoYo AI version control directory
+.yoyo/
