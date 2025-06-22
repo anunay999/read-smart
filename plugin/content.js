@@ -9,11 +9,11 @@ if (typeof window.readSmartInitialized !== 'undefined') {
 
 // --- State ---
 let readerModeActive = false;
+let smartRephraseActive = false;
 let overlay = null;
 let geminiApiKey = null;
 let originalArticle = null;
 let rephrasedContent = null;
-let activatedBySmartRephrase = false; // Track if reader mode was activated by smart rephrase
 
 // --- Initialization ---
 chrome.storage.sync.get(['geminiApiKey'], function(result) {
@@ -27,25 +27,42 @@ chrome.runtime.sendMessage({action: "contentScriptReady"});
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Content script received message:', request);
   
-  if (request.action === "toggleReaderMode") {
-    if (!readerModeActive) {
-      // Track if this was activated by smart rephrase
-      activatedBySmartRephrase = request.fromSmartRephrase || false;
-      enableReaderMode(request.rephrase, request.geminiApiKey, request.mem0ApiKey).then(() => {
-        sendResponse({readerModeActive: true, activatedBySmartRephrase});
-      }).catch(error => {
-        console.error('Error enabling reader mode:', error);
-        activatedBySmartRephrase = false;
-        sendResponse({readerModeActive: false, error: error.message});
-      });
-      return true; // Keep message channel open for async response
-    } else {
-      disableReaderMode();
-      activatedBySmartRephrase = false;
-      sendResponse({readerModeActive: false});
-    }
+  if (request.action === "enableReaderMode") {
+    (async () => {
+      try {
+        await enablePlainReaderMode();
+        console.log('✅ Reader mode enabled');
+        sendResponse({success: true});
+      } catch (error) {
+        console.error('❌ Error enabling reader mode:', error.message);
+        sendResponse({success: false, error: error.message});
+      }
+    })();
+    return true;
+    
+  } else if (request.action === "disableReaderMode") {
+    disableReaderMode();
+    sendResponse({success: true});
+    
+  } else if (request.action === "enableSmartRephrase") {
+    (async () => {
+      try {
+        await enableSmartRephraseMode(request.geminiApiKey, request.mem0ApiKey);
+        console.log('✅ Smart rephrase enabled');
+        sendResponse({success: true});
+      } catch (error) {
+        console.error('❌ Error enabling smart rephrase:', error.message);
+        sendResponse({success: false, error: error.message});
+      }
+    })();
+    return true;
+    
+  } else if (request.action === "disableSmartRephrase") {
+    disableSmartRephrase();
+    sendResponse({success: true});
+    
   } else if (request.action === "getState") {
-    sendResponse({readerModeActive, activatedBySmartRephrase});
+    sendResponse({readerModeActive, smartRephraseActive});
   } else if (request.action === "updateApiKeys") {
     geminiApiKey = request.geminiApiKey;
     // Store mem0ApiKey if needed for future use
@@ -71,71 +88,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({success: false, error: error.message});
     });
     return true; // Keep message channel open for async response
-  } else if (request.action === "rephraseInReaderMode") {
-    if (readerModeActive && originalArticle) {
-      showSkeletonOverlay();
-      
-      // Check if we have both API keys for memory-enhanced rephrasing
-      if (request.geminiApiKey && request.mem0ApiKey) {
-        console.log('🧠 Using memory-enhanced rephrasing...');
-        rephraseWithMemories(request.geminiApiKey, request.mem0ApiKey).then(result => {
-          if (result.success) {
-            rephrasedContent = result.rephrasedContent;
-            renderReaderOverlay({
-              title: originalArticle.title,
-              content: rephrasedContent
-            }, true);
-            sendResponse({success: true, memoryEnhanced: true, relevantMemoriesCount: result.relevantMemoriesCount});
-          } else {
-            // Fallback to regular Gemini rephrasing
-            console.log('⚠️ Memory rephrasing failed, falling back to regular rephrasing');
-            return rephraseWithGemini(originalArticle.textContent);
-          }
-        }).then(fallbackContent => {
-          if (fallbackContent) {
-            rephrasedContent = fallbackContent;
-            renderReaderOverlay({
-              title: originalArticle.title,
-              content: rephrasedContent
-            }, true);
-            sendResponse({success: true, memoryEnhanced: false});
-          }
-        }).catch(error => {
-          sendResponse({error: error.message});
-        });
-      } else {
-        // Use regular Gemini rephrasing if API keys not available
-        console.log('📝 Using regular Gemini rephrasing...');
-        rephraseWithGemini(originalArticle.textContent).then(markdown => {
-          rephrasedContent = markdown;
-          renderReaderOverlay({
-            title: originalArticle.title,
-            content: rephrasedContent
-          }, true);
-          sendResponse({success: true, memoryEnhanced: false});
-        }).catch(error => {
-          sendResponse({error: error.message});
-        });
-      }
-      return true;
-    } else {
-      sendResponse({error: 'Reader mode not active or no original article'});
-    }
-  } else if (request.action === "showOriginalInReaderMode") {
-    if (readerModeActive && originalArticle) {
-      renderReaderOverlay({
-        title: originalArticle.title,
-        content: originalArticle.content
-      }, false);
-      sendResponse({success: true});
-    } else {
-      sendResponse({error: 'Reader mode not active or no original article'});
-    }
-  } else if (request.action === "disableReaderModeOnly") {
-    // Disable reader mode without affecting rephrase state
-    disableReaderMode();
-    activatedBySmartRephrase = false;
-    sendResponse({readerModeActive: false});
+
   } else if (request.action === "addPageToMemory") {
     console.log('💾 Adding page to memory...');
     addPageToMemory(request.geminiApiKey, request.mem0ApiKey).then(result => {
@@ -376,17 +329,111 @@ function disableReaderMode() {
   readerModeActive = false;
 }
 
+// --- New Clean Functions ---
+async function enablePlainReaderMode() {
+  try {
+    const article = await extractMainContent();
+    originalArticle = article;
+    
+    renderReaderOverlay({
+      title: article.title,
+      content: article.content
+    }, false);
+    
+    readerModeActive = true;
+    smartRephraseActive = false;
+  } catch (error) {
+    console.error('❌ Error in enablePlainReaderMode:', error.message);
+    throw error;
+  }
+}
+
+async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
+  try {
+    const article = await extractMainContent();
+    originalArticle = article;
+    
+    // Show skeleton loading overlay
+    showSkeletonOverlay();
+    
+    // Use memory-enhanced rephrasing with the same content extraction as reader mode
+    console.log('🧠 Using memory-enhanced rephrasing...');
+    try {
+      const result = await rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKey);
+      if (result.success) {
+        rephrasedContent = result.rephrasedContent;
+        // Remove skeleton and show content
+        renderReaderOverlay({
+          title: article.title,
+          content: rephrasedContent
+        }, true);
+      } else {
+        // Fallback to regular Gemini rephrasing
+        console.log('⚠️ Memory rephrasing failed, falling back to regular rephrasing');
+        rephrasedContent = await rephraseWithGemini(article.textContent);
+        // Remove skeleton and show content
+        renderReaderOverlay({
+          title: article.title,
+          content: rephrasedContent
+        }, true);
+      }
+    } catch (error) {
+      console.error('Error in memory-enhanced rephrasing, falling back:', error);
+      rephrasedContent = await rephraseWithGemini(article.textContent);
+      // Remove skeleton and show content
+      renderReaderOverlay({
+        title: article.title,
+        content: rephrasedContent
+      }, true);
+    }
+    
+    readerModeActive = false;
+    smartRephraseActive = true;
+  } catch (error) {
+    // Make sure to remove skeleton on error
+    removeFloatingSkeletonLoader();
+    removeOverlay();
+    console.error('Error in enableSmartRephraseMode:', error);
+    throw error;
+  }
+}
+
+function disableSmartRephrase() {
+  if (overlay) {
+    overlay.remove();
+    overlay = null;
+  }
+  // Restore original content visibility
+  Array.from(document.body.children).forEach(child => {
+    if (child.id !== 'read-smart-overlay') {
+      child.style.display = '';
+    }
+  });
+  smartRephraseActive = false;
+}
+
 // --- Content Extraction ---
 async function extractMainContent() {
+  // Check if Readability is available
+  if (typeof Readability === 'undefined') {
+    throw new Error('Readability library not loaded');
+  }
+  
   // Extracts the main article content using Readability
   const documentClone = document.cloneNode(true);
   fixLazyLoadedImages(documentClone);
+  
   const reader = new Readability(documentClone, {
     charThreshold: 20,
     classesToPreserve: ['important', 'highlight']
   });
+  
   const article = reader.parse();
-  if (!article) throw new Error('Could not extract article content');
+  
+  if (!article) {
+    throw new Error('Could not extract article content');
+  }
+  
   return {
     title: article.title,
     content: article.content,
@@ -412,6 +459,7 @@ function fixLazyLoadedImages(doc) {
 function renderReaderOverlay(article, isMarkdown = false) {
   hideDOMExceptOverlay();
   removeOverlay();
+  
   overlay = document.createElement('div');
   overlay.id = 'read-smart-overlay';
   overlay.className = 'fixed inset-0 w-screen h-screen overflow-auto bg-[#f4ecd8] z-[2147483647]';
@@ -634,6 +682,67 @@ async function addPageToMemory(geminiApiKey, mem0ApiKey) {
   }
 }
 
+// Rephrase content with user memories using already extracted article
+async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKey) {
+  console.log('🔄 Starting content rephrasing with memories using article...');
+  
+  try {
+    // Check if MemoryEnhancedReading is available
+    if (typeof MemoryEnhancedReading === 'undefined') {
+      throw new Error('MemoryEnhancedReading library not loaded');
+    }
+    
+    console.log('📄 Using extracted article content, length:', article.textContent.length);
+    
+    // Initialize Memory Reader with lower relevance threshold
+    console.log('🧠 Initializing Memory Reader...');
+    const memoryReader = new MemoryEnhancedReading({
+      mem0ApiKey: mem0ApiKey,
+      geminiApiKey: geminiApiKey,
+      userId: "chrome_extension_user",
+      debug: true,
+      relevanceThreshold: 0.1  // Lower threshold to be more inclusive
+    });
+    
+    // Rephrase content with user memories
+    console.log('✨ Rephrasing content with user memories...');
+    const result = await memoryReader.rephraseWithUserMemories(
+      article.textContent,
+      {
+        includeContext: true,
+        maxMemories: 10,
+        relevanceThreshold: 0.1
+      }
+    );
+    
+    console.log('📊 Content rephrasing result:', {
+      success: result.success,
+      memoriesUsed: result.relevantMemoriesCount || 0,
+      hasContent: !!result.rephrasedContent
+    });
+    
+    // If we got a successful result with content, use it
+    if (result.success && result.rephrasedContent && result.rephrasedContent.trim().length > 0) {
+      console.log('✅ Memory-enhanced rephrasing successful');
+      return result;
+    } else {
+      console.log('⚠️ Memory rephrasing returned empty or invalid content');
+      return {
+        success: false,
+        error: 'No content generated from memory rephrasing'
+      };
+    }
+    
+  } catch (error) {
+    console.error('❌ Error in rephraseWithMemoriesUsingArticle:', error);
+    return {
+      success: false,
+      processed: false,
+      error: error.message
+    };
+  }
+}
+
 // Rephrase content with user memories using MemoryEnhancedReading library  
 async function rephraseWithMemories(geminiApiKey, mem0ApiKey) {
   console.log('🔄 Starting content rephrasing with memories...');
@@ -654,21 +763,44 @@ async function rephraseWithMemories(geminiApiKey, mem0ApiKey) {
     
     console.log('📄 Content extracted successfully, length:', contentResult.content.length);
     
-    // Initialize Memory Reader
+    // Initialize Memory Reader with lower relevance threshold
     console.log('🧠 Initializing Memory Reader...');
     const memoryReader = new MemoryEnhancedReading({
       mem0ApiKey: mem0ApiKey,
       geminiApiKey: geminiApiKey,
       userId: "chrome_extension_user",
-      debug: true
+      debug: true,
+      relevanceThreshold: 0.1  // Lower threshold to be more inclusive
     });
     
     // Rephrase content with user memories
     console.log('✨ Rephrasing content with user memories...');
-    const result = await memoryReader.rephraseWithUserMemories(contentResult.content);
+    const result = await memoryReader.rephraseWithUserMemories(
+      contentResult.content,
+      {
+        includeContext: true,
+        maxMemories: 10,
+        relevanceThreshold: 0.1
+      }
+    );
     
-    console.log('📊 Content rephrasing completed:', result);
-    return result;
+    console.log('📊 Content rephrasing result:', {
+      success: result.success,
+      memoriesUsed: result.relevantMemoriesCount || 0,
+      hasContent: !!result.rephrasedContent
+    });
+    
+    // If we got a successful result with content, use it
+    if (result.success && result.rephrasedContent && result.rephrasedContent.trim().length > 0) {
+      console.log('✅ Memory-enhanced rephrasing successful');
+      return result;
+    } else {
+      console.log('⚠️ Memory rephrasing returned empty or invalid content');
+      return {
+        success: false,
+        error: 'No content generated from memory rephrasing'
+      };
+    }
     
   } catch (error) {
     console.error('❌ Error in rephraseWithMemories:', error);

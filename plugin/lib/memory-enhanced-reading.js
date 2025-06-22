@@ -230,6 +230,7 @@ class MemoryEnhancedReading {
             }
 
             // Sort by relevance score and limit results
+            console.log('All relevant memories:', allRelevantMemories);
             allRelevantMemories.sort((a, b) => b.score - a.score);
             const relevantMemories = allRelevantMemories.slice(0, this.maxMemories);
 

@@ -29,90 +29,75 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Load saved states and API keys
-  function loadSavedData() {
-    chrome.storage.sync.get([
-      STORAGE_KEYS.GEMINI_API_KEY, 
-      STORAGE_KEYS.MEM0_API_KEY, 
-      STORAGE_KEYS.REPHRASE_WITH_GEMINI
-    ], function(result) {
-      // Load API keys and update status
-      if (result[STORAGE_KEYS.GEMINI_API_KEY]) {
-        geminiApiKeyInput.value = result[STORAGE_KEYS.GEMINI_API_KEY];
-        updateApiKeyStatus(geminiStatus, true);
-      } else {
-        updateApiKeyStatus(geminiStatus, false);
-      }
+  async function loadSavedData() {
+    try {
+      const result = await chrome.storage.sync.get([
+        STORAGE_KEYS.GEMINI_API_KEY, 
+        STORAGE_KEYS.MEM0_API_KEY, 
+        STORAGE_KEYS.REPHRASE_WITH_GEMINI
+      ]);
       
-      if (result[STORAGE_KEYS.MEM0_API_KEY]) {
-        mem0ApiKeyInput.value = result[STORAGE_KEYS.MEM0_API_KEY];
-        updateApiKeyStatus(mem0Status, true);
-      } else {
-        updateApiKeyStatus(mem0Status, false);
-      }
+      // Load API keys into input fields
+      const geminiKey = result[STORAGE_KEYS.GEMINI_API_KEY] || '';
+      const mem0Key = result[STORAGE_KEYS.MEM0_API_KEY] || '';
+      
+      geminiApiKeyInput.value = geminiKey;
+      mem0ApiKeyInput.value = mem0Key;
       
       // Load rephrase toggle state (default ON)
       rephraseToggle.checked = result[STORAGE_KEYS.REPHRASE_WITH_GEMINI] !== false;
       
-      // Check if API keys are configured
-      const hasGeminiKey = !!result[STORAGE_KEYS.GEMINI_API_KEY];
-      const hasMem0Key = !!result[STORAGE_KEYS.MEM0_API_KEY];
-      const hasAnyApiKey = hasGeminiKey || hasMem0Key;
+      // Update UI based on current API key status
+      updateAllUIStates();
       
-      // Update UI based on API key status
-      updateUIForApiKeyStatus(hasAnyApiKey);
-      
-      // Show configuration modal if no API keys are configured
-      if (!hasAnyApiKey) {
-        showConfigModal();
-      }
-    });
+    } catch (error) {
+      console.error('Error loading saved data:', error);
+    }
   }
 
-  // Update UI based on API key configuration status
-  function updateUIForApiKeyStatus(hasApiKeys) {
-    // Enable/disable buttons based on API key status
-    memoryButton.disabled = !hasApiKeys;
-    dashboardButton.disabled = !hasApiKeys;
-    readerModeToggle.disabled = !hasApiKeys;
-    rephraseToggle.disabled = !hasApiKeys;
+  // Check if API keys are configured
+  function hasValidApiKeys() {
+    const hasGemini = geminiApiKeyInput.value.trim().length > 0;
+    const hasMem0 = mem0ApiKeyInput.value.trim().length > 0;
+    return hasGemini || hasMem0;
+  }
+
+  // Update all UI states based on current API key status
+  function updateAllUIStates() {
+    const hasKeys = hasValidApiKeys();
+    
+    // Update API key status indicators
+    updateApiKeyStatus(geminiStatus, geminiApiKeyInput.value.trim().length > 0);
+    updateApiKeyStatus(mem0Status, mem0ApiKeyInput.value.trim().length > 0);
+    
+    // Enable/disable buttons
+    memoryButton.disabled = !hasKeys;
+    dashboardButton.disabled = !hasKeys;
+    readerModeToggle.disabled = !hasKeys;
+    rephraseToggle.disabled = !hasKeys;
+    
+    // Update visual states
+    const opacity = hasKeys ? '1' : '0.5';
+    memoryButton.style.opacity = opacity;
+    dashboardButton.style.opacity = opacity;
+    document.querySelector('.feature-item:nth-child(1)').style.opacity = opacity;
+    document.querySelector('.feature-item:nth-child(2)').style.opacity = opacity;
     
     // Update status text
-    if (!hasApiKeys) {
+    if (!hasKeys) {
       statusText.textContent = 'Please configure API keys';
       statusText.className = 'status';
+      showConfigModal();
     } else {
       statusText.textContent = 'Normal reading mode';
       statusText.className = 'status';
     }
-    
-    // Add visual indication for disabled state
-    if (!hasApiKeys) {
-      memoryButton.style.opacity = '0.5';
-      dashboardButton.style.opacity = '0.5';
-      document.querySelector('.feature-item:nth-child(1)').style.opacity = '0.5';
-      document.querySelector('.feature-item:nth-child(2)').style.opacity = '0.5';
-    } else {
-      memoryButton.style.opacity = '1';
-      dashboardButton.style.opacity = '1';
-      document.querySelector('.feature-item:nth-child(1)').style.opacity = '1';
-      document.querySelector('.feature-item:nth-child(2)').style.opacity = '1';
-    }
   }
 
-  // Update API key status display
+  // Update individual API key status display
   function updateApiKeyStatus(statusElement, isConfigured) {
-    if (isConfigured) {
-      statusElement.textContent = 'Configured';
-      statusElement.className = 'api-status configured';
-    } else {
-      statusElement.textContent = 'Not configured';
-      statusElement.className = 'api-status missing';
-    }
-    
-    // Check if any API keys are configured and update UI accordingly
-    const hasGeminiKey = geminiApiKeyInput.value.trim().length > 0;
-    const hasMem0Key = mem0ApiKeyInput.value.trim().length > 0;
-    updateUIForApiKeyStatus(hasGeminiKey || hasMem0Key);
+    statusElement.textContent = isConfigured ? 'Configured' : 'Not configured';
+    statusElement.className = isConfigured ? 'api-status configured' : 'api-status missing';
   }
 
   // Show configuration modal
@@ -143,30 +128,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const storageData = {};
+      // Save both API keys to storage
+      await chrome.storage.sync.set({
+        [STORAGE_KEYS.GEMINI_API_KEY]: geminiKey,
+        [STORAGE_KEYS.MEM0_API_KEY]: mem0Key
+      });
       
-      if (geminiKey) {
-        storageData[STORAGE_KEYS.GEMINI_API_KEY] = geminiKey;
-      }
+      // Show success alert
+      alert('API keys saved successfully!');
       
-      if (mem0Key) {
-        storageData[STORAGE_KEYS.MEM0_API_KEY] = mem0Key;
-      }
-      
-      await chrome.storage.sync.set(storageData);
-      
-      // Update API key status displays
-      updateApiKeyStatus(geminiStatus, !!geminiKey);
-      updateApiKeyStatus(mem0Status, !!mem0Key);
-      
-      // Update UI for enabled state
-      updateUIForApiKeyStatus(true);
+      // Update all UI states
+      updateAllUIStates();
       
       // Update content script with new API keys
       try {
-      const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
-      if (tab) {
-        await chrome.tabs.sendMessage(tab.id, {
+        const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+        if (tab) {
+          await chrome.tabs.sendMessage(tab.id, {
             action: "updateApiKeys",
             geminiApiKey: geminiKey,
             mem0ApiKey: mem0Key
@@ -176,14 +154,13 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Could not update content script:', error);
       }
       
+      // Close modal and show success status
       hideConfigModal();
-      
-      // Show success message
-      const originalText = statusText.textContent;
       statusText.textContent = 'Configuration saved successfully!';
       statusText.className = 'status active';
+      
       setTimeout(() => {
-        statusText.textContent = originalText;
+        statusText.textContent = readerModeToggle.checked ? 'Smart reading mode active' : 'Normal reading mode';
         statusText.className = readerModeToggle.checked ? 'status active' : 'status';
       }, 2000);
       
@@ -333,204 +310,152 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Real-time API key status updates
-  geminiApiKeyInput.addEventListener('input', () => {
-    updateApiKeyStatus(geminiStatus, geminiApiKeyInput.value.trim().length > 0);
-  });
+  geminiApiKeyInput.addEventListener('input', updateAllUIStates);
+  mem0ApiKeyInput.addEventListener('input', updateAllUIStates);
 
-  mem0ApiKeyInput.addEventListener('input', () => {
-    updateApiKeyStatus(mem0Status, mem0ApiKeyInput.value.trim().length > 0);
-  });
-
-    // Save rephrase toggle state
+  // Handle rephrase toggle
   rephraseToggle.addEventListener('change', async () => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.REPHRASE_WITH_GEMINI]: rephraseToggle.checked });
+    await chrome.storage.sync.set({ [STORAGE_KEYS.REPHRASE_WITH_GEMINI]: rephraseToggle.checked });
     
-    const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
-    if (!tab) return;
-    
-    try {
-      // Get API keys for memory-enhanced rephrasing
-      const storage = await chrome.storage.sync.get([STORAGE_KEYS.GEMINI_API_KEY, STORAGE_KEYS.MEM0_API_KEY]);
-      const geminiKey = storage[STORAGE_KEYS.GEMINI_API_KEY];
-      const mem0Key = storage[STORAGE_KEYS.MEM0_API_KEY];
-      
-      // Check if reader mode is active
-      const response = await chrome.tabs.sendMessage(tab.id, {action: "getState"});
-      
-      if (rephraseToggle.checked) {
-        // Smart Rephrase turned ON
-        if (response && response.readerModeActive) {
-          // If reader mode is already active, rephrase in place with memory enhancement
-          await chrome.tabs.sendMessage(tab.id, {
-            action: "rephraseInReaderMode",
-            geminiApiKey: geminiKey,
-            mem0ApiKey: mem0Key
-          });
-        } else {
-          // If reader mode is not active, enable it with memory-enhanced rephrase
-          await enableReaderModeWithRephrase(tab.id);
-        }
-      } else {
-        // Smart Rephrase turned OFF
-        if (response && response.readerModeActive) {
-          // Show original content in reader mode
-          await chrome.tabs.sendMessage(tab.id, {action: "showOriginalInReaderMode"});
-        }
-      }
-    } catch (error) {
-      console.log('Could not communicate with content script:', error);
+    if (rephraseToggle.checked) {
+      // Disable reader mode when smart rephrase is enabled
+      readerModeToggle.checked = false;
+      await enableSmartRephrase();
+    } else {
+      await disableSmartRephrase();
     }
   });
 
-  // Function to update UI state
-  function updateUIState(isActive) {
-    readerModeToggle.checked = isActive;
-    statusText.textContent = isActive ? 'Smart reading mode active' : 'Normal reading mode';
-    statusText.className = isActive ? 'status active' : 'status';
+  // Handle reader mode toggle
+  readerModeToggle.addEventListener('change', async () => {
+    if (readerModeToggle.checked) {
+      // Disable smart rephrase when reader mode is enabled
+      rephraseToggle.checked = false;
+      await chrome.storage.sync.set({ [STORAGE_KEYS.REPHRASE_WITH_GEMINI]: false });
+      await enableReaderMode();
+    } else {
+      await disableReaderMode();
+    }
+  });
+
+  // Enable plain reader mode
+  async function enableReaderMode() {
+    try {
+      const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+      if (!tab) return;
+
+      // Inject required scripts
+      await injectScripts(tab.id);
+      
+      // Enable plain reader mode
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        action: "enableReaderMode"
+      });
+
+      if (response && response.success) {
+        statusText.textContent = 'Reader mode active';
+        statusText.className = 'status active';
+      } else {
+        throw new Error(response?.error || 'Failed to enable reader mode');
+      }
+    } catch (error) {
+      console.error('Error enabling reader mode:', error);
+      readerModeToggle.checked = false;
+      statusText.textContent = 'Error enabling reader mode';
+      statusText.className = 'status';
+    }
   }
 
-  // Helper function to enable reader mode with rephrase without updating toggle
-  async function enableReaderModeWithRephrase(tabId) {
+  // Disable reader mode
+  async function disableReaderMode() {
     try {
-      // Get API keys for memory-enhanced rephrasing
+      const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+      if (!tab) return;
+
+      await chrome.tabs.sendMessage(tab.id, {
+        action: "disableReaderMode"
+      });
+
+      statusText.textContent = 'Normal reading mode';
+      statusText.className = 'status';
+    } catch (error) {
+      console.error('Error disabling reader mode:', error);
+    }
+  }
+
+  // Enable smart rephrase
+  async function enableSmartRephrase() {
+    try {
+      const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+      if (!tab) return;
+
+      // Get API keys
       const storage = await chrome.storage.sync.get([STORAGE_KEYS.GEMINI_API_KEY, STORAGE_KEYS.MEM0_API_KEY]);
       const geminiKey = storage[STORAGE_KEYS.GEMINI_API_KEY];
       const mem0Key = storage[STORAGE_KEYS.MEM0_API_KEY];
-      
-      // First, inject the required libraries and content script
-      try {
-        // Inject Readability.js
-        await chrome.scripting.executeScript({
-          target: { tabId: tabId },
-          files: ['lib/Readability.js']
-        });
-        
-        // Inject marked.js for markdown parsing
-        await chrome.scripting.executeScript({
-          target: { tabId: tabId },
-          files: ['lib/marked.min.js']
-        });
-        
-        // Inject content script
-        await chrome.scripting.executeScript({
-          target: { tabId: tabId },
-          files: ['content.js']
-        });
-        console.log('Scripts injected successfully');
-      } catch (error) {
-        console.log('Scripts might already be injected:', error);
+
+      if (!geminiKey || !mem0Key) {
+        alert('Please configure both Gemini and Mem0 API keys for Smart Rephrase');
+        rephraseToggle.checked = false;
+        showConfigModal();
+        return;
       }
+
+      // Inject required scripts
+      await injectScripts(tab.id);
       
-      // Enable reader mode with memory-enhanced rephrase
-      const response = await chrome.tabs.sendMessage(tabId, {
-        action: "toggleReaderMode",
-        rephrase: true,
-        fromSmartRephrase: true,
+      statusText.textContent = 'Processing with AI...';
+      statusText.className = 'status active';
+      
+      // Enable smart rephrase with memory
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        action: "enableSmartRephrase",
         geminiApiKey: geminiKey,
         mem0ApiKey: mem0Key
       });
-      
-      if (response && response.error) {
-        console.error('Reader mode error:', response.error);
-        statusText.textContent = 'Error activating reader mode';
-        statusText.className = 'status';
-      } else if (response && response.readerModeActive) {
-        statusText.textContent = 'Smart reading mode active';
+
+      if (response && response.success) {
+        statusText.textContent = 'Smart rephrase active';
         statusText.className = 'status active';
+      } else {
+        throw new Error(response?.error || 'Failed to enable smart rephrase');
       }
     } catch (error) {
-      console.error('Error enabling reader mode with rephrase:', error);
-      statusText.textContent = 'Error communicating with page';
+      console.error('Error enabling smart rephrase:', error);
+      rephraseToggle.checked = false;
+      statusText.textContent = 'Error enabling smart rephrase';
       statusText.className = 'status';
     }
   }
 
-  // Function to toggle reader mode
-  async function toggleReaderMode() {
+  // Disable smart rephrase
+  async function disableSmartRephrase() {
     try {
-      console.log('Toggling reader mode');
-      
-      // Get the current active tab
       const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
-      
-      if (!tab) {
-        console.error('No active tab found');
-        return;
-      }
-      
-      console.log('Current tab:', tab);
-      
-      // First, inject the required libraries and content script
-      try {
-        // Inject Readability.js
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['lib/Readability.js']
-        });
-        
-        // Inject marked.js for markdown parsing
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['lib/marked.min.js']
-        });
-        
-        // Inject content script
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['content.js']
-        });
-        console.log('Scripts injected successfully');
-      } catch (error) {
-        console.log('Scripts might already be injected:', error);
-      }
-      
-      // Send the toggle message with rephrase state
-      const response = await chrome.tabs.sendMessage(tab.id, {
-        action: "toggleReaderMode",
-        rephrase: rephraseToggle.checked,
+      if (!tab) return;
+
+      await chrome.tabs.sendMessage(tab.id, {
+        action: "disableSmartRephrase"
       });
-      console.log('Received response:', response);
-      
-      if (response) {
-        if (response.error) {
-          console.error('Reader mode error:', response.error);
-          // Reset toggle state on error
-          readerModeToggle.checked = false;
-          statusText.textContent = 'Error activating reader mode';
-          statusText.className = 'status';
-        } else {
-        updateUIState(response.readerModeActive);
-        }
-      }
-    } catch (error) {
-      console.error('Error in popup:', error);
-      // Reset toggle state on error
-      readerModeToggle.checked = false;
-      statusText.textContent = 'Error communicating with page';
+
+      statusText.textContent = 'Normal reading mode';
       statusText.className = 'status';
+    } catch (error) {
+      console.error('Error disabling smart rephrase:', error);
     }
   }
 
-  // Add click listener to toggle
-  readerModeToggle.addEventListener('change', async () => {
-    // If reader mode is being turned off and smart rephrase is on, we need special handling
-    if (!readerModeToggle.checked && rephraseToggle.checked) {
-      const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
-      if (tab) {
-        try {
-          // Disable reader mode without affecting rephrase toggle
-          await chrome.tabs.sendMessage(tab.id, {action: "disableReaderModeOnly"});
-          statusText.textContent = 'Normal reading mode';
-          statusText.className = 'status';
-          return;
-        } catch (error) {
-          console.log('Could not communicate with content script:', error);
-        }
-      }
+  // Helper function to inject required scripts
+  async function injectScripts(tabId) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ['lib/Readability.js', 'lib/marked.min.js', 'content.js']
+      });
+    } catch (error) {
+      console.log('Scripts might already be injected:', error);
     }
-    
-    toggleReaderMode();
-  });
+  }
 
   // Check initial state
   async function checkInitialState() {
@@ -539,17 +464,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (tab) {
         const response = await chrome.tabs.sendMessage(tab.id, {action: "getState"});
         if (response) {
-          // If reader mode was activated by smart rephrase, don't update reader mode toggle
-          if (response.activatedBySmartRephrase) {
-            // Keep reader mode toggle OFF but update status
-            readerModeToggle.checked = false;
-            if (response.readerModeActive) {
-              statusText.textContent = 'Smart reading mode active';
-              statusText.className = 'status active';
-            }
-          } else {
-            // Normal reader mode activation
-            updateUIState(response.readerModeActive);
+          if (response.readerModeActive) {
+            readerModeToggle.checked = true;
+            statusText.textContent = 'Reader mode active';
+            statusText.className = 'status active';
+          } else if (response.smartRephraseActive) {
+            rephraseToggle.checked = true;
+            statusText.textContent = 'Smart rephrase active';
+            statusText.className = 'status active';
           }
         }
       }
