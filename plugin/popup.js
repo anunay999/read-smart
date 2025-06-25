@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
       mem0ApiKeyInput.value = mem0Key;
       
       // Load rephrase toggle state (default ON)
-      rephraseToggle.checked = result[STORAGE_KEYS.REPHRASE_WITH_GEMINI] !== false;
+      rephraseToggle.checked = result[STORAGE_KEYS.REPHRASE_WITH_GEMINI] === true;
       
       // Update UI based on current API key status
       updateAllUIStates();
@@ -65,31 +65,36 @@ document.addEventListener('DOMContentLoaded', () => {
   // Update all UI states based on current API key status
   function updateAllUIStates() {
     const hasKeys = hasValidApiKeys();
+    const hasGeminiKey = geminiApiKeyInput.value.trim().length > 0;
+    const hasMem0Key = mem0ApiKeyInput.value.trim().length > 0;
     
     // Update API key status indicators
-    updateApiKeyStatus(geminiStatus, geminiApiKeyInput.value.trim().length > 0);
-    updateApiKeyStatus(mem0Status, mem0ApiKeyInput.value.trim().length > 0);
+    updateApiKeyStatus(geminiStatus, hasGeminiKey);
+    updateApiKeyStatus(mem0Status, hasMem0Key);
     
-    // Enable/disable buttons
-    memoryButton.disabled = !hasKeys;
+    // Reader Mode is always available (no API key required)
+    readerModeToggle.disabled = false;
+    document.querySelector('.feature-item:nth-child(1)').style.opacity = '1';
+    
+    // Smart Rephrase requires Gemini API key
+    rephraseToggle.disabled = !hasGeminiKey;
+    const rephraseOpacity = hasGeminiKey ? '1' : '0.5';
+    document.querySelector('.feature-item:nth-child(2)').style.opacity = rephraseOpacity;
+    
+    // Memory features require Mem0 API key
+    memoryButton.disabled = !hasMem0Key;
+    memoryButton.style.opacity = hasMem0Key ? '1' : '0.5';
+    
+    // Dashboard requires at least one API key
     dashboardButton.disabled = !hasKeys;
-    readerModeToggle.disabled = !hasKeys;
-    rephraseToggle.disabled = !hasKeys;
+    dashboardButton.style.opacity = hasKeys ? '1' : '0.5';
     
-    // Update visual states
-    const opacity = hasKeys ? '1' : '0.5';
-    memoryButton.style.opacity = opacity;
-    dashboardButton.style.opacity = opacity;
-    document.querySelector('.feature-item:nth-child(1)').style.opacity = opacity;
-    document.querySelector('.feature-item:nth-child(2)').style.opacity = opacity;
-    
-    // Update status text
+    // Update status text based on what's available
     if (!hasKeys) {
-      statusText.textContent = 'Please configure API keys';
+      statusText.textContent = 'Reader mode available - Configure API keys for AI features';
       statusText.className = 'status';
-      showConfigModal();
     } else {
-      statusText.textContent = 'Normal reading mode';
+      statusText.textContent = 'All features available';
       statusText.className = 'status';
     }
   }
@@ -121,10 +126,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const geminiKey = geminiApiKeyInput.value.trim();
     const mem0Key = mem0ApiKeyInput.value.trim();
     
-    // At least one API key should be provided
+    // API keys are optional, but at least show a warning if none are provided
     if (!geminiKey && !mem0Key) {
-      alert('Please enter at least one API key');
-      return;
+      const proceed = confirm('No API keys provided. You can only use Reader Mode without API keys. Continue?');
+      if (!proceed) {
+        return;
+      }
     }
 
     try {
@@ -151,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
       } catch (error) {
-        console.log('Could not update content script:', error);
+        // Could not update content script, likely not injected yet
       }
       
       // Close modal and show success status
@@ -182,54 +189,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Add current page to memory using Memory-Enhanced Reading Library
   async function addCurrentPageToMemory() {
-    console.log('🧠 Starting Add to Memory process...');
-    
     try {
       // Check if API keys are configured
-      console.log('🔍 Checking API keys...');
       const storage = await chrome.storage.sync.get([STORAGE_KEYS.GEMINI_API_KEY, STORAGE_KEYS.MEM0_API_KEY]);
       const geminiKey = storage[STORAGE_KEYS.GEMINI_API_KEY];
       const mem0Key = storage[STORAGE_KEYS.MEM0_API_KEY];
 
-      console.log('🔑 Gemini key present:', !!geminiKey);
-      console.log('🔑 Mem0 key present:', !!mem0Key);
-
-      if (!geminiKey || !mem0Key) {
-        console.warn('⚠️ Missing API keys - showing config modal');
-        alert('Please configure both Gemini and Mem0 API keys first.');
+      if (!mem0Key) {
+        alert('Please configure Mem0 API key for memory features.');
         showConfigModal();
         return;
       }
 
       // Show loading state
-      console.log('⏳ Setting loading state...');
       const originalText = memoryButton.textContent;
       memoryButton.textContent = 'Adding...';
       memoryButton.disabled = true;
 
       // Get current tab
-      console.log('🔍 Getting current tab...');
       const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
       if (!tab) {
         throw new Error('No active tab found');
       }
-      console.log('📑 Current tab:', tab.url, tab.title);
 
       // Process page content with memory library in content script
-      console.log('🔄 Processing page content with memory library...');
-      statusText.textContent = 'Processing with AI...';
+      statusText.textContent = 'Generating with Memory...';
       statusText.className = 'status active';
       
       // First, inject content script if needed
       try {
-        console.log('💉 Ensuring content script is injected...');
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           files: ['lib/Readability.js', 'lib/marked.min.js', 'lib/memory-enhanced-reading.js', 'content.js']
         });
-        console.log('✅ Content script injected successfully');
       } catch (scriptError) {
-        console.log('⚠️ Content script might already be injected:', scriptError.message);
+        // Content script might already be injected
       }
       
       // Send message to content script to add page to memory
@@ -239,12 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mem0ApiKey: mem0Key
       });
 
-      console.log('📊 Memory processing result:', result);
-
       if (result.success && result.processed) {
-        console.log('✅ Memory addition completed successfully');
-        console.log(`📝 Added ${result.snippetsCount} memory snippets`);
-        
         // Show success
         memoryButton.textContent = 'Add to Memory';
         memoryButton.disabled = false;
@@ -404,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Inject required scripts
       await injectScripts(tab.id);
       
-      statusText.textContent = 'Processing with AI...';
+      statusText.textContent = 'Generating with memory...';
       statusText.className = 'status active';
       
       // Enable smart rephrase with memory
@@ -452,9 +441,9 @@ document.addEventListener('DOMContentLoaded', () => {
         target: { tabId: tabId },
         files: ['lib/Readability.js', 'lib/marked.min.js', 'lib/memory-enhanced-reading.js', 'content.js']
       });
-    } catch (error) {
-      console.log('Scripts might already be injected:', error);
-    }
+          } catch (error) {
+        // Scripts might already be injected
+      }
   }
 
   // Check initial state
@@ -476,7 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     } catch (error) {
-      console.log('Error checking initial state:', error);
+      // Error checking initial state, tab might not have content script
     }
   }
 

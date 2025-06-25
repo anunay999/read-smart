@@ -44,7 +44,15 @@
     ],
     "web_accessible_resources": [
       {
-        "resources": ["styles.css"],
+        "resources": [
+          "lib/Readability.js",
+          "lib/marked.min.js", 
+          "lib/memory-enhanced-reading.js",
+          "lib/tailwind.min.css",
+          "reader-styles.css",
+          "styles.css"
+
+        ],
         "matches": ["<all_urls>"]
       }
     ]

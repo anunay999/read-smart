@@ -1,9 +1,8 @@
 // content.js - Modular reader mode implementation
-console.log('Content script loaded');
 
 // Prevent duplicate initialization
 if (typeof window.readSmartInitialized !== 'undefined') {
-  console.log('Content script already initialized, skipping...');
+  // Content script already initialized, skipping
 } else {
   window.readSmartInitialized = true;
 
@@ -25,13 +24,10 @@ chrome.runtime.sendMessage({action: "contentScriptReady"});
 
 // --- Message Handling ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Content script received message:', request);
-  
   if (request.action === "enableReaderMode") {
     (async () => {
       try {
         await enablePlainReaderMode();
-        console.log('✅ Reader mode enabled');
         sendResponse({success: true});
       } catch (error) {
         console.error('❌ Error enabling reader mode:', error.message);
@@ -64,7 +60,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     (async () => {
       try {
         await enableSmartRephraseMode(request.geminiApiKey, request.mem0ApiKey);
-        console.log('✅ Smart rephrase enabled');
         sendResponse({success: true});
       } catch (error) {
         console.error('❌ Error enabling smart rephrase:', error.message);
@@ -84,15 +79,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Store mem0ApiKey if needed for future use
     sendResponse({success: true});
   } else if (request.action === "extractPageContent") {
-    console.log('📨 Received extractPageContent request');
-    console.log('📄 Document ready state:', document.readyState);
-    console.log('📄 Document URL:', document.URL);
-    console.log('📄 Document title:', document.title);
-    console.log('📄 Document body exists:', !!document.body);
-    console.log('📄 Document body children count:', document.body ? document.body.children.length : 0);
-    
     extractPageContentForMemory().then(result => {
-      console.log('✅ Content extraction completed successfully:', result);
       sendResponse(result);
     }).catch(error => {
       console.error('❌ Content extraction failed:', error);
@@ -106,9 +93,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // Keep message channel open for async response
 
   } else if (request.action === "addPageToMemory") {
-    console.log('💾 Adding page to memory...');
     addPageToMemory(request.geminiApiKey, request.mem0ApiKey).then(result => {
-      console.log('✅ Memory addition completed:', result);
       sendResponse(result);
     }).catch(error => {
       console.error('❌ Memory addition failed:', error);
@@ -119,11 +104,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true;
 });
 async function extractPageContentForMemory() {
-  console.log('📄 Starting page content extraction for memory...');
-  
   try {
     // Try to extract with Readability first
-    console.log('📚 Attempting Readability extraction...');
     const documentClone = document.cloneNode(true);
     fixLazyLoadedImages(documentClone);
     const reader = new Readability(documentClone, {
@@ -132,33 +114,19 @@ async function extractPageContentForMemory() {
     });
     const article = reader.parse();
     
-    console.log('📚 Readability result:', article ? 'Success' : 'Failed');
-    if (article) {
-      console.log('📚 Readability - Title:', article.title);
-      console.log('📚 Readability - Text length:', article.textContent?.length || 0);
-    }
-    
     if (article && article.textContent && article.textContent.trim().length > 100) {
       // Successfully extracted with Readability
-      console.log('✅ Using Readability extraction');
       const result = {
         success: true,
         content: article.textContent.trim(),
         title: article.title || document.title || 'Untitled Page'
       };
-      console.log('📄 Final result from Readability:', {
-        contentLength: result.content.length,
-        title: result.title
-      });
       return result;
     } else {
       // Fallback to extracting visible text from page
-      console.log('🔄 Readability insufficient, falling back to visible text extraction...');
       const title = document.title || 'Untitled Page';
-      console.log('📑 Document title:', title);
       
       const content = extractVisibleText();
-      console.log('📄 Visible text extraction result length:', content.length);
       
       if (content.length < 50) {
         console.error('❌ Insufficient content found:', content.length, 'characters');
@@ -170,10 +138,6 @@ async function extractPageContentForMemory() {
         content: content,
         title: title
       };
-      console.log('📄 Final result from visible text:', {
-        contentLength: result.content.length,
-        title: result.title
-      });
       return result;
     }
   } catch (error) {
@@ -184,8 +148,6 @@ async function extractPageContentForMemory() {
 }
 
 function extractVisibleText() {
-  console.log('👁️ Starting visible text extraction...');
-  
   // Extract visible text from common content containers
   const selectors = [
     'main', 'article', '[role="main"]', 
@@ -194,15 +156,11 @@ function extractVisibleText() {
     'body'
   ];
   
-  console.log('🔍 Trying selectors:', selectors);
-  
   let content = '';
   
   for (const selector of selectors) {
-    console.log('🔍 Trying selector:', selector);
     const element = document.querySelector(selector);
     if (element) {
-      console.log('✅ Found element for selector:', selector);
       
       // Get text content but filter out script/style tags
       const walker = document.createTreeWalker(
@@ -240,31 +198,21 @@ function extractVisibleText() {
       }
       
       content = textContent.join(' ').trim();
-      console.log('📄 Extracted text length from', selector + ':', content.length);
       
       // If we got substantial content, use it
       if (content.length > 200) {
-        console.log('✅ Found substantial content, using selector:', selector);
         break;
       }
-    } else {
-      console.log('❌ No element found for selector:', selector);
     }
   }
   
-  console.log('🧹 Cleaning up content...');
   // Clean up the content
   content = content.replace(/\s+/g, ' ').trim();
-  console.log('📄 Content after cleanup, length:', content.length);
   
   // Limit content length to avoid API limits
   if (content.length > 8000) {
-    console.log('✂️ Truncating content from', content.length, 'to 8000 characters');
     content = content.substring(0, 8000) + '...';
   }
-  
-  console.log('📄 Final visible text length:', content.length);
-  console.log('📄 Content preview:', content.substring(0, 200) + '...');
   
   return content;
 }
@@ -281,7 +229,6 @@ async function enableReaderMode(rephrase = true, geminiApiKey = null, mem0ApiKey
         
         // Use memory-enhanced rephrasing if API keys are available
         if (geminiApiKey && mem0ApiKey) {
-          console.log('🧠 Using memory-enhanced rephrasing in reader mode...');
           try {
             const result = await rephraseWithMemories(geminiApiKey, mem0ApiKey);
             if (result.success) {
@@ -292,7 +239,6 @@ async function enableReaderMode(rephrase = true, geminiApiKey = null, mem0ApiKey
               }, true);
             } else {
               // Fallback to regular Gemini rephrasing
-              console.log('⚠️ Memory rephrasing failed, falling back to regular rephrasing');
               rephrasedContent = await rephraseWithGemini(article.textContent);
               renderReaderOverlay({
                 title: article.title,
@@ -309,7 +255,6 @@ async function enableReaderMode(rephrase = true, geminiApiKey = null, mem0ApiKey
           }
         } else {
           // Use regular Gemini rephrasing
-          console.log('📝 Using regular Gemini rephrasing in reader mode...');
           rephrasedContent = await rephraseWithGemini(article.textContent);
           renderReaderOverlay({
             title: article.title,
@@ -369,25 +314,27 @@ async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
     const article = await extractMainContent();
     originalArticle = article;
     
-    // Show skeleton loading overlay
+    // Show skeleton loading overlay (this hides DOM and shows skeleton)
     showSkeletonOverlay();
     
     // Use memory-enhanced rephrasing with the same content extraction as reader mode
-    console.log('🧠 Using memory-enhanced rephrasing...');
     try {
       const result = await rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKey);
       if (result.success) {
         rephrasedContent = result.rephrasedContent;
-        // Remove skeleton and show content
+        // Explicitly remove skeleton overlay and show rephrased content
+        removeOverlay();
+        await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure clean transition
         renderReaderOverlay({
           title: article.title,
           content: rephrasedContent
         }, true);
       } else {
         // Fallback to regular Gemini rephrasing
-        console.log('⚠️ Memory rephrasing failed, falling back to regular rephrasing');
         rephrasedContent = await rephraseWithGemini(article.textContent);
-        // Remove skeleton and show content
+        // Explicitly remove skeleton overlay and show rephrased content
+        removeOverlay();
+        await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure clean transition
         renderReaderOverlay({
           title: article.title,
           content: rephrasedContent
@@ -396,7 +343,9 @@ async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
     } catch (error) {
       console.error('Error in memory-enhanced rephrasing, falling back:', error);
       rephrasedContent = await rephraseWithGemini(article.textContent);
-      // Remove skeleton and show content
+      // Explicitly remove skeleton overlay and show rephrased content
+      removeOverlay();
+      await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure clean transition
       renderReaderOverlay({
         title: article.title,
         content: rephrasedContent
@@ -406,9 +355,9 @@ async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
     readerModeActive = false;
     smartRephraseActive = true;
   } catch (error) {
-    // Make sure to remove skeleton on error
-    removeFloatingSkeletonLoader();
+    // Make sure to remove all overlays on error
     removeOverlay();
+    removeFloatingSkeletonLoader();
     console.error('Error in enableSmartRephraseMode:', error);
     throw error;
   }
@@ -473,109 +422,84 @@ function fixLazyLoadedImages(doc) {
 
 // --- Overlay Rendering ---
 function renderReaderOverlay(article, isMarkdown = false) {
-  hideDOMExceptOverlay();
+  // Ensure clean state - remove any existing overlays first
   removeOverlay();
+  removeFloatingSkeletonLoader();
+  
+  // Hide DOM content
+  hideDOMExceptOverlay();
   
   overlay = document.createElement('div');
   overlay.id = 'read-smart-overlay';
   overlay.className = 'fixed inset-0 w-screen h-screen overflow-auto bg-[#f4ecd8] z-[2147483647]';
   
-  // Create style element for better text visibility
-  const style = document.createElement('style');
-  style.textContent = `
-    #read-smart-overlay {
-      color: #3e2f1c !important;
-      background: #f4ecd8 !important;
-    }
-    #read-smart-overlay *,
-    #read-smart-overlay *:before,
-    #read-smart-overlay *:after {
-      color: #3e2f1c !important;
-      background-color: transparent !important;
-    }
-    #read-smart-overlay h1, #read-smart-overlay h2, #read-smart-overlay h3, 
-    #read-smart-overlay h4, #read-smart-overlay h5, #read-smart-overlay h6 {
-      color: #5b4636 !important;
-      font-weight: bold !important;
-      background-color: transparent !important;
-    }
-    #read-smart-overlay p, #read-smart-overlay div, #read-smart-overlay span,
-    #read-smart-overlay li, #read-smart-overlay td, #read-smart-overlay th,
-    #read-smart-overlay article, #read-smart-overlay section {
-      color: #3e2f1c !important;
-      background-color: transparent !important;
-    }
-    #read-smart-overlay a, #read-smart-overlay a:visited, #read-smart-overlay a:hover {
-      color: #8b5a2b !important;
-      text-decoration: underline !important;
-      background-color: transparent !important;
-    }
-         #read-smart-overlay strong, #read-smart-overlay b {
-       color: #1a0f08 !important;
-       font-weight: bold !important;
-       background-color: transparent !important;
-     }
-     #read-smart-overlay em, #read-smart-overlay i {
-       color: #3e2f1c !important;
-       font-style: italic !important;
-       background-color: transparent !important;
-     }
-     #read-smart-overlay code {
-       color: #d97706 !important;
-       background-color: #2d1b0a !important;
-       padding: 3px 6px !important;
-       border-radius: 4px !important;
-       font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace !important;
-       font-size: 0.9em !important;
-     }
-     #read-smart-overlay pre {
-       color: #2d1f0f !important;
-       background-color: #e8dcc6 !important;
-       padding: 12px !important;
-       border-radius: 6px !important;
-       overflow-x: auto !important;
-     }
-     #read-smart-overlay pre code {
-       color: #2d1f0f !important;
-       background-color: transparent !important;
-       padding: 0 !important;
-       border-radius: 0 !important;
-     }
-    #read-smart-overlay blockquote {
-      color: #5b4636 !important;
-      background-color: transparent !important;
-      border-left: 4px solid #8b5a2b;
-      padding-left: 16px;
-      margin: 16px 0;
-    }
-  `;
+  // Inject reader styles if not already present
+  if (!document.getElementById('read-smart-reader-styles')) {
+    const link = document.createElement('link');
+    link.id = 'read-smart-reader-styles';
+    link.rel = 'stylesheet';
+    link.type = 'text/css';
+    link.href = chrome.runtime.getURL('reader-styles.css');
+    document.head.appendChild(link);
+  }
   
   overlay.innerHTML = `
-    <div class="max-w-4xl mx-auto my-10 p-8 bg-transparent rounded-xl shadow-lg font-serif leading-relaxed">
-      <h1 class="text-3xl mb-8 font-bold tracking-tight">${article.title}</h1>
-      <div id="reader-content" class="prose prose-lg prose-neutral">
+    <div class="max-w-5xl mx-auto my-8 p-12 bg-transparent rounded-2xl shadow-2xl font-serif leading-relaxed">
+      <header class="mb-12 pb-6 border-b-2 border-amber-200">
+        <h1 class="text-4xl md:text-5xl mb-4 font-bold tracking-tight text-stone-900">${article.title}</h1>
+        <div class="flex items-center gap-4 text-sm text-stone-600">
+          <span class="px-3 py-1 bg-amber-100 rounded-full">Enhanced Reading Mode</span>
+        </div>
+      </header>
+      <main id="reader-content" class="prose prose-xl prose-stone max-w-none">
         ${isMarkdown && window.marked ? window.marked.parse(article.content) : article.content}
-      </div>
+      </main>
     </div>
   `;
   
-  overlay.appendChild(style);
   document.body.appendChild(overlay);
 }
 
 function showSkeletonOverlay() {
-  hideDOMExceptOverlay();
+  // Ensure clean state - remove any existing overlays first
   removeOverlay();
+  removeFloatingSkeletonLoader();
+  
+  // Hide DOM content
+  hideDOMExceptOverlay();
+  
   overlay = document.createElement('div');
   overlay.id = 'read-smart-overlay';
   overlay.className = 'fixed inset-0 w-screen h-screen overflow-auto bg-[#f4ecd8] z-[2147483647] flex items-center';
+  // Inject reader styles if not already present
+  if (!document.getElementById('read-smart-reader-styles')) {
+    const link = document.createElement('link');
+    link.id = 'read-smart-reader-styles';
+    link.rel = 'stylesheet';
+    link.type = 'text/css';
+    link.href = chrome.runtime.getURL('reader-styles.css');
+    document.head.appendChild(link);
+  }
+  
   overlay.innerHTML = `
-    <div class="max-w-4xl w-full mx-auto p-8 bg-transparent rounded-xl shadow-lg animate-pulse">
-      <div class="h-10 w-3/5 bg-[#e0d6c3] rounded mb-6"></div>
-      <div class="h-5 w-full bg-[#e0d6c3] rounded mb-4"></div>
-      <div class="h-5 w-full bg-[#e0d6c3] rounded mb-4"></div>
-      <div class="h-5 w-full bg-[#e0d6c3] rounded mb-4"></div>
+    <div class="skeleton-container" style="opacity: 0; animation: fadeIn 0.3s ease-in forwards;">
+      <div class="skeleton-title" style="height: 3rem; width: 60%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; margin-bottom: 2rem;"></div>
+      <div class="skeleton-line" style="height: 1rem; width: 100%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; margin-bottom: 1rem;"></div>
+      <div class="skeleton-line" style="height: 1rem; width: 95%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; margin-bottom: 1rem;"></div>
+      <div class="skeleton-line" style="height: 1rem; width: 90%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; margin-bottom: 1rem;"></div>
+      <div class="skeleton-line" style="height: 1rem; width: 85%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; margin-bottom: 2rem;"></div>
+      <div class="skeleton-line" style="height: 1rem; width: 100%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; margin-bottom: 1rem;"></div>
+      <div class="skeleton-line" style="height: 1rem; width: 88%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; margin-bottom: 1rem;"></div>
     </div>
+    <style>
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+      @keyframes fadeIn {
+        to { opacity: 1; }
+      }
+    </style>
   `;
   document.body.appendChild(overlay);
 }
@@ -654,8 +578,6 @@ function removeFloatingSkeletonLoader() {
 
 // Add page content to memory using MemoryEnhancedReading library
 async function addPageToMemory(geminiApiKey, mem0ApiKey) {
-  console.log('🧠 Starting memory addition...');
-  
   try {
     // Check if MemoryEnhancedReading is available
     if (typeof MemoryEnhancedReading === 'undefined') {
@@ -663,30 +585,24 @@ async function addPageToMemory(geminiApiKey, mem0ApiKey) {
     }
     
     // Extract page content first
-    console.log('📄 Extracting page content...');
     const contentResult = await extractPageContentForMemory();
     
     if (!contentResult.success) {
       throw new Error('Failed to extract page content');
     }
     
-    console.log('📄 Content extracted successfully, length:', contentResult.content.length);
-    
     // Initialize Memory Reader
-    console.log('🧠 Initializing Memory Reader...');
     const memoryReader = new MemoryEnhancedReading({
       mem0ApiKey: mem0ApiKey,
       geminiApiKey: geminiApiKey,
       userId: "chrome_extension_user",
-      debug: true
+      debug: false
     });
     
     // Add page content to memory only
-    console.log('💾 Adding page content to memory...');
     const pageUrl = window.location.href;
     const result = await memoryReader.addPageToMemory(contentResult.content, pageUrl);
     
-    console.log('📊 Memory addition completed:', result);
     return result;
     
   } catch (error) {
@@ -701,28 +617,22 @@ async function addPageToMemory(geminiApiKey, mem0ApiKey) {
 
 // Rephrase content with user memories using already extracted article
 async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKey) {
-  console.log('🔄 Starting content rephrasing with memories using article...');
-  
   try {
     // Check if MemoryEnhancedReading is available
     if (typeof MemoryEnhancedReading === 'undefined') {
       throw new Error('MemoryEnhancedReading library not loaded');
     }
     
-    console.log('📄 Using extracted article content, length:', article.textContent.length);
-    
     // Initialize Memory Reader with lower relevance threshold
-    console.log('🧠 Initializing Memory Reader...');
     const memoryReader = new MemoryEnhancedReading({
       mem0ApiKey: mem0ApiKey,
       geminiApiKey: geminiApiKey,
       userId: "chrome_extension_user",
-      debug: true,
+      debug: false,
       relevanceThreshold: 0.1  // Lower threshold to be more inclusive
     });
     
     // Rephrase content with user memories
-    console.log('✨ Rephrasing content with user memories...');
     const result = await memoryReader.rephraseWithUserMemories(
       article.textContent,
       {
@@ -732,18 +642,10 @@ async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKe
       }
     );
     
-    console.log('📊 Content rephrasing result:', {
-      success: result.success,
-      memoriesUsed: result.relevantMemoriesCount || 0,
-      hasContent: !!result.rephrasedContent
-    });
-    
     // If we got a successful result with content, use it
     if (result.success && result.rephrasedContent && result.rephrasedContent.trim().length > 0) {
-      console.log('✅ Memory-enhanced rephrasing successful');
       return result;
     } else {
-      console.log('⚠️ Memory rephrasing returned empty or invalid content');
       return {
         success: false,
         error: 'No content generated from memory rephrasing'
@@ -762,8 +664,6 @@ async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKe
 
 // Rephrase content with user memories using MemoryEnhancedReading library  
 async function rephraseWithMemories(geminiApiKey, mem0ApiKey) {
-  console.log('🔄 Starting content rephrasing with memories...');
-  
   try {
     // Check if MemoryEnhancedReading is available
     if (typeof MemoryEnhancedReading === 'undefined') {
@@ -771,27 +671,22 @@ async function rephraseWithMemories(geminiApiKey, mem0ApiKey) {
     }
     
     // Extract page content first
-    console.log('📄 Extracting page content...');
     const contentResult = await extractPageContentForMemory();
     
     if (!contentResult.success) {
       throw new Error('Failed to extract page content');
     }
     
-    console.log('📄 Content extracted successfully, length:', contentResult.content.length);
-    
     // Initialize Memory Reader with lower relevance threshold
-    console.log('🧠 Initializing Memory Reader...');
     const memoryReader = new MemoryEnhancedReading({
       mem0ApiKey: mem0ApiKey,
       geminiApiKey: geminiApiKey,
       userId: "chrome_extension_user",
-      debug: true,
+      debug: false,
       relevanceThreshold: 0.1  // Lower threshold to be more inclusive
     });
     
     // Rephrase content with user memories
-    console.log('✨ Rephrasing content with user memories...');
     const result = await memoryReader.rephraseWithUserMemories(
       contentResult.content,
       {
@@ -801,18 +696,10 @@ async function rephraseWithMemories(geminiApiKey, mem0ApiKey) {
       }
     );
     
-    console.log('📊 Content rephrasing result:', {
-      success: result.success,
-      memoriesUsed: result.relevantMemoriesCount || 0,
-      hasContent: !!result.rephrasedContent
-    });
-    
     // If we got a successful result with content, use it
     if (result.success && result.rephrasedContent && result.rephrasedContent.trim().length > 0) {
-      console.log('✅ Memory-enhanced rephrasing successful');
       return result;
     } else {
-      console.log('⚠️ Memory rephrasing returned empty or invalid content');
       return {
         success: false,
         error: 'No content generated from memory rephrasing'
