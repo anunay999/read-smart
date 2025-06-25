@@ -225,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('💉 Ensuring content script is injected...');
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          files: ['lib/Readability.js', 'lib/marked.min.js', 'content.js']
+          files: ['lib/Readability.js', 'lib/marked.min.js', 'lib/memory-enhanced-reading.js', 'content.js']
         });
         console.log('✅ Content script injected successfully');
       } catch (scriptError) {
@@ -450,7 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tabId },
-        files: ['lib/Readability.js', 'lib/marked.min.js', 'content.js']
+        files: ['lib/Readability.js', 'lib/marked.min.js', 'lib/memory-enhanced-reading.js', 'content.js']
       });
     } catch (error) {
       console.log('Scripts might already be injected:', error);
