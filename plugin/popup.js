@@ -151,7 +151,6 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
       } catch (error) {
-        console.log('Could not update content script:', error);
       }
       
       // Close modal and show success status
@@ -182,17 +181,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Add current page to memory using Memory-Enhanced Reading Library
   async function addCurrentPageToMemory() {
-    console.log('🧠 Starting Add to Memory process...');
     
     try {
       // Check if API keys are configured
-      console.log('🔍 Checking API keys...');
       const storage = await chrome.storage.sync.get([STORAGE_KEYS.GEMINI_API_KEY, STORAGE_KEYS.MEM0_API_KEY]);
       const geminiKey = storage[STORAGE_KEYS.GEMINI_API_KEY];
       const mem0Key = storage[STORAGE_KEYS.MEM0_API_KEY];
 
-      console.log('🔑 Gemini key present:', !!geminiKey);
-      console.log('🔑 Mem0 key present:', !!mem0Key);
 
       if (!geminiKey || !mem0Key) {
         console.warn('⚠️ Missing API keys - showing config modal');
@@ -202,35 +197,29 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Show loading state
-      console.log('⏳ Setting loading state...');
       const originalText = memoryButton.textContent;
       memoryButton.textContent = 'Adding...';
       memoryButton.disabled = true;
 
       // Get current tab
-      console.log('🔍 Getting current tab...');
       const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
       if (!tab) {
         throw new Error('No active tab found');
       }
-      console.log('📑 Current tab:', tab.url, tab.title);
 
       // Process page content with memory library in content script
-      console.log('🔄 Processing page content with memory library...');
       statusText.textContent = 'Processing with AI...';
       statusText.className = 'status active';
       
       // First, inject content script if needed
-      try {
-        console.log('💉 Ensuring content script is injected...');
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['lib/Readability.js', 'lib/marked.min.js', 'lib/memory-enhanced-reading.js', 'content.js']
-        });
-        console.log('✅ Content script injected successfully');
-      } catch (scriptError) {
-        console.log('⚠️ Content script might already be injected:', scriptError.message);
-      }
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['lib/Readability.js', 'lib/marked.min.js', 'lib/memory-enhanced-reading.js', 'content.js']
+      });
+    } catch (scriptError) {
+      console.warn('Content script might already be injected:', scriptError.message);
+    }
       
       // Send message to content script to add page to memory
       const result = await chrome.tabs.sendMessage(tab.id, {
@@ -239,11 +228,8 @@ document.addEventListener('DOMContentLoaded', () => {
         mem0ApiKey: mem0Key
       });
 
-      console.log('📊 Memory processing result:', result);
 
       if (result.success && result.processed) {
-        console.log('✅ Memory addition completed successfully');
-        console.log(`📝 Added ${result.snippetsCount} memory snippets`);
         
         // Show success
         memoryButton.textContent = 'Add to Memory';
@@ -453,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
         files: ['lib/Readability.js', 'lib/marked.min.js', 'lib/memory-enhanced-reading.js', 'content.js']
       });
     } catch (error) {
-      console.log('Scripts might already be injected:', error);
+      console.warn('Scripts might already be injected:', error.message);
     }
   }
 
@@ -476,7 +462,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     } catch (error) {
-      console.log('Error checking initial state:', error);
     }
   }
 

@@ -1,9 +1,7 @@
 // content.js - Modular reader mode implementation
-console.log('Content script loaded');
 
 // Prevent duplicate initialization
 if (typeof window.readSmartInitialized !== 'undefined') {
-  console.log('Content script already initialized, skipping...');
 } else {
   window.readSmartInitialized = true;
 
@@ -25,13 +23,11 @@ chrome.runtime.sendMessage({action: "contentScriptReady"});
 
 // --- Message Handling ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Content script received message:', request);
   
   if (request.action === "enableReaderMode") {
     (async () => {
       try {
         await enablePlainReaderMode();
-        console.log('✅ Reader mode enabled');
         sendResponse({success: true});
       } catch (error) {
         console.error('❌ Error enabling reader mode:', error.message);
@@ -43,68 +39,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === "disableReaderMode") {
     disableReaderMode();
     sendResponse({success: true});
-  } else if (request.action === "toggleReaderMode") {
-    if (readerModeActive) {
-      disableReaderMode();
-      sendResponse({success: true, active: false});
-    } else {
-      (async () => {
-        try {
-          await enablePlainReaderMode();
-          sendResponse({success: true, active: true});
-        } catch (error) {
-          console.error('❌ Error enabling reader mode:', error.message);
-          sendResponse({success: false, error: error.message});
-        }
-      })();
-    }
-    return true;
-    
-  } else if (request.action === "enableSmartRephrase") {
-    (async () => {
-      try {
-        await enableSmartRephraseMode(request.geminiApiKey, request.mem0ApiKey);
-        console.log('✅ Smart rephrase enabled');
-        sendResponse({success: true});
-      } catch (error) {
-        console.error('❌ Error enabling smart rephrase:', error.message);
-        sendResponse({success: false, error: error.message});
-      }
-    })();
-    return true;
-    
-  } else if (request.action === "disableSmartRephrase") {
-    disableSmartRephrase();
-    sendResponse({success: true});
-    
-  } else if (request.action === "getState") {
-    sendResponse({readerModeActive, smartRephraseActive});
-  } else if (request.action === "updateApiKeys") {
-    geminiApiKey = request.geminiApiKey;
-    // Store mem0ApiKey if needed for future use
-    sendResponse({success: true});
-  } else if (request.action === "extractPageContent") {
-    console.log('📨 Received extractPageContent request');
-    console.log('📄 Document ready state:', document.readyState);
-    console.log('📄 Document URL:', document.URL);
-    console.log('📄 Document title:', document.title);
-    console.log('📄 Document body exists:', !!document.body);
-    console.log('📄 Document body children count:', document.body ? document.body.children.length : 0);
-    
-    extractPageContentForMemory().then(result => {
-      console.log('✅ Content extraction completed successfully:', result);
-      sendResponse(result);
-    }).catch(error => {
-      console.error('❌ Content extraction failed:', error);
-      console.error('❌ Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
-      sendResponse({success: false, error: error.message});
-    });
-    return true; // Keep message channel open for async response
+      if (article && article.textContent && article.textContent.trim().length > 100) {
+        // Successfully extracted with Readability
+        const result = {
+          success: true,
+          content: article.textContent.trim(),
+          title: article.title || document.title || 'Untitled Page'
+        };
+        return result;
+      } else {
+        // Fallback to extracting visible text from page
+        const title = document.title || 'Untitled Page';
 
+        const content = extractVisibleText();
+        const result = {
+          success: true,
+          content: content,
+          title: title
+        };
+        return result;
+      }
   } else if (request.action === "addPageToMemory") {
     console.log('💾 Adding page to memory...');
     addPageToMemory(request.geminiApiKey, request.mem0ApiKey).then(result => {
@@ -332,8 +286,6 @@ async function enableReaderMode(rephrase = true, geminiApiKey = null, mem0ApiKey
 }
 
 function disableReaderMode() {
-  if (overlay) {
-    overlay.remove();
     overlay = null;
   }
   // Restore original content visibility
@@ -613,27 +565,6 @@ async function rephraseWithGemini(text) {
   }
 }
 
-// TODO: Replace this stub with your actual API call
-async function rephraseWithCustomAPI(text) {
-  // Example: return await fetch('https://your-api.com/rephrase', { ... })
-  return `**[Custom API Response]**\n\n${text}`;
-}
-
-// Show a floating skeleton loader (does not hide DOM)
-function showFloatingSkeletonLoader() {
-  if (document.getElementById('read-smart-skeleton')) return;
-  const skeleton = document.createElement('div');
-  skeleton.id = 'read-smart-skeleton';
-  skeleton.style.position = 'fixed';
-  skeleton.style.top = '40px';
-  skeleton.style.left = '50%';
-  skeleton.style.transform = 'translateX(-50%)';
-  skeleton.style.zIndex = '2147483647';
-  skeleton.innerHTML = `
-    <div class="skeleton-loader" style="max-width: 800px; padding: 32px; background: #f4ecd8; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,0.08);">
-      <div class="skeleton-title" style="height: 2.2rem; width: 60%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
-      <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
-      <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
       <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
     </div>
     <style>

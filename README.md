@@ -6,7 +6,7 @@ A Chrome extension that personalizes web content based on your reading history u
 
 Read Smart transforms how you consume web content by:
 1. **Learning from your reading** - Extracts key insights and stores them as memories
-2. **Personalizing new content** - Rephrases articles based on what you already know
+2. **Personalizing new content** - Rephrases articles with a focus on what you haven't read yet
 3. **Maintaining author voice** - Preserves the original writing style while adding personal context
 4. **Connecting knowledge** - Shows how new content relates to your existing understanding
 
@@ -66,6 +66,7 @@ The extension follows a **separation of concerns** approach with two distinct op
 - **Author-Aware Rephrasing**: Maintains original writing style while personalizing content
 - **Knowledge Connections**: Shows how new content relates to existing memories
 - **Reference Links**: Recap section lists source URLs for the memories used
+- **Read Less, Learn More**: Personalized content skips what you've already stored and focuses on new insights
 - **Reader Mode Integration**: Clean reading experience with memory-enhanced content
 - **Dual-Section Output**: Main personalized content + knowledge recap
 - **Graceful Fallbacks**: Works even when memory operations fail

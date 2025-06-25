@@ -234,7 +234,6 @@ class MemoryEnhancedReading {
             }
 
             // Sort by relevance score and limit results
-            console.log('All relevant memories:', allRelevantMemories);
             allRelevantMemories.sort((a, b) => b.score - a.score);
             const relevantMemories = allRelevantMemories.slice(0, this.maxMemories);
 
@@ -283,7 +282,6 @@ class MemoryEnhancedReading {
             ]`;
         try {
             const response = await this.generateWithGemini(prompt);
-            console.log('Response gemini memory snippets:', response);
             const snippets = JSON.parse(response.trim());
             this.log(`Generated ${snippets.length} memory snippets:`, snippets);
             return snippets;
@@ -299,16 +297,21 @@ class MemoryEnhancedReading {
     async rephraseContentWithMemory(content, existingMemories) {
         const memoryText = existingMemories
             .map(mem => {
-                const urlPart = mem.metadata && mem.metadata.url ? ` (source: ${mem.metadata.url})` : '';
-                return `• ${mem.memory}${urlPart}`;
+                const url = mem.metadata && mem.metadata.url ? ` [source](${mem.metadata.url})` : '';
+                return `- ${mem.memory}${url}`;
             })
             .join('\n');
 
         const prompt = `
-You are an expert content personalizer that adapts articles to a reader's existing knowledge while preserving the author's unique writing style.
+You are an expert content personalizer. Using the reader's prior memories, rewrite the article while keeping the author's voice.
 
-TASK
-Rewrite the article below in the original author's voice. Provide exactly two markdown sections.
+Provide exactly two Markdown sections.
+
+## SECTION 1 – Recap & References
+Summarize how the reader's memories relate to this article. End with a bullet list titled **References** linking to the memory URLs.
+
+## SECTION 2 – Personalized Content
+Rewrite the article in the same style, focusing on material not already covered in the recap and preserving key words and phrases.
 
 READER KNOWLEDGE
 ${memoryText}
@@ -316,24 +319,10 @@ ${memoryText}
 ORIGINAL ARTICLE
 ${content}
 
-GUIDELINES
-1. Study the author's tone, vocabulary, and sentence structure.
-2. Produce two sections:
-
-## SECTION 1 – Personalized Content
-- Present the article in the same style and voice.
-- Weave in references to the reader's knowledge when relevant.
-- Highlight new information without repeating what they already know.
-
-## SECTION 2 – Knowledge Connection Recap
-- Briefly explain how the article connects to prior knowledge.
-- Keep this recap conversational and in the author's style.
-- After the recap, add a **References** list linking to any provided memory URLs.
-
 CRITICAL REQUIREMENTS
-- Maintain the author's exact writing style and unique expressions.
-- Ensure both sections feel cohesive and natural.
-`;
+- Use the author's tone and vocabulary.
+- Minimize repetition of the reader knowledge.
+- Produce clear Markdown output with the two sections above.`;
 
         try {
             const rephrasedContent = await this.generateWithGemini(prompt);
