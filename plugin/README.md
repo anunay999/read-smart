@@ -1,6 +1,6 @@
 # Read Smart Chrome Extension
 
-A Chrome extension that enables a distraction-free reader mode and can rephrase web content using Gemini Pro or your own custom API.
+A Chrome extension that enables a distraction-free reader mode and can rephrase web content using Gemini 2.5 Flash or your own custom API.
 
 ---
 
@@ -24,7 +24,7 @@ A Chrome extension that enables a distraction-free reader mode and can rephrase 
 5. **Usage**
    - Click the extension icon.
    - Toggle "Read Mode" to enable distraction-free reading.
-   - Toggle "Smart Rephrase" to rephrase the content using Gemini Pro.
+   - Toggle "Smart Rephrase" to rephrase the content using Gemini 2.5 Flash.
    - You can switch between original and rephrased content instantly.
 
 ---
@@ -49,7 +49,7 @@ async function rephraseWithCustomAPI(text) {
 
 ## 📝 Features
 - Reader mode for distraction-free reading
-- Rephrase content using Gemini Pro (with your API key)
+- Rephrase content using Gemini 2.5 Flash (with your API key)
 - Toggle between original and rephrased content instantly
 - Skeleton loader for a smooth experience
 - Modular, readable codebase
