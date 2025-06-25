@@ -43,6 +43,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === "disableReaderMode") {
     disableReaderMode();
     sendResponse({success: true});
+  } else if (request.action === "toggleReaderMode") {
+    if (readerModeActive) {
+      disableReaderMode();
+      sendResponse({success: true, active: false});
+    } else {
+      (async () => {
+        try {
+          await enablePlainReaderMode();
+          sendResponse({success: true, active: true});
+        } catch (error) {
+          console.error('❌ Error enabling reader mode:', error.message);
+          sendResponse({success: false, error: error.message});
+        }
+      })();
+    }
+    return true;
     
   } else if (request.action === "enableSmartRephrase") {
     (async () => {
