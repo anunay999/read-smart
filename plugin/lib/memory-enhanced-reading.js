@@ -12,7 +12,7 @@ class MemoryEnhancedReading {
         this.userId = config.userId;
         this.baseUrl = 'https://api.mem0.ai/v1';
         this.geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
-        
+
         // Configuration
         this.maxMemories = config.maxMemories || 10;
         this.relevanceThreshold = config.relevanceThreshold || 0.3;
@@ -39,16 +39,16 @@ class MemoryEnhancedReading {
                 headers: options.headers,
                 body: options.body ? JSON.parse(options.body) : null
             });
-            
+
             const response = await fetch(url, options);
             this.log(`Response status: ${response.status}`);
-            
+
             if (!response.ok) {
                 const errorText = await response.text();
                 this.log('Error response body:', errorText);
                 throw new Error(`API call failed: ${response.status} - ${errorText.substring(0, 200)}`);
             }
-            
+
             const responseData = await response.json();
             this.log('Response data:', responseData);
             return responseData;
@@ -148,7 +148,7 @@ class MemoryEnhancedReading {
         };
 
         const response = await this.makeApiCall(url, options);
-        return response.results || [];
+        return response || [];
     }
 
     /**
@@ -165,7 +165,7 @@ class MemoryEnhancedReading {
         };
 
         const response = await this.makeApiCall(url, options);
-        return response.results || [];
+        return response || [];
     }
 
     /**
@@ -173,7 +173,7 @@ class MemoryEnhancedReading {
      */
     async addMemory(content) {
         const url = `${this.baseUrl}/memories/`;
-        
+
         // Format the request body to match the working curl example
         const requestBody = {
             messages: [
@@ -181,7 +181,7 @@ class MemoryEnhancedReading {
             ],
             user_id: this.userId
         };
-        
+
         const options = {
             method: 'POST',
             headers: {
@@ -202,7 +202,7 @@ class MemoryEnhancedReading {
         try {
             // Extract key topics from the content
             const topics = await this.extractContentTopics(content);
-            
+
             if (topics.length === 0) {
                 this.log('No topics extracted, returning empty results');
                 return [];
@@ -215,10 +215,10 @@ class MemoryEnhancedReading {
             for (const topic of topics) {
                 try {
                     const memories = await this.searchMemories(topic);
-                    
+
                     // Add unique memories with sufficient relevance
                     for (const mem of memories) {
-                        if (!seenMemoryIds.has(mem.id) && mem.score > this.relevanceThreshold) {
+                        if (!seenMemoryIds.has(mem.id) && (mem.score > this.relevanceThreshold)) {
                             allRelevantMemories.push(mem);
                             seenMemoryIds.add(mem.id);
                         }
@@ -289,7 +289,7 @@ class MemoryEnhancedReading {
         }
     }
 
-        /**
+    /**
      * Rephrase content based on existing user memories, matching author's writing style
      */
     async rephraseContentWithMemory(content, existingMemories) {
