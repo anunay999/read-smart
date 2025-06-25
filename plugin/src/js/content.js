@@ -428,6 +428,7 @@ function injectSkeletonCSS() {
 function showSkeletonOverlay() {
   console.log('Creating skeleton overlay');
   injectSkeletonCSS();
+  
   hideDOMExceptOverlay();
   removeOverlay();
   
@@ -576,6 +577,7 @@ async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKe
       geminiApiKey: geminiApiKey,
       userId: "chrome_extension_user",
       debug: false,
+      maxMemories: 6,
       relevanceThreshold: 0.6  // Lower threshold to be more inclusive
     });
 
@@ -584,11 +586,6 @@ async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKe
     // Rephrase content with user memories
     const result = await memoryReader.rephraseWithUserMemories(
       article.textContent,
-      {
-        includeContext: true,
-        maxMemories: 10,
-        relevanceThreshold: 0.1
-      }
     );
     
     // If we got a successful result with content, use it
