@@ -1,5 +1,3 @@
-// content.js - Modular reader mode implementation
-
 // Prevent duplicate initialization
 if (typeof window.readSmartInitialized !== 'undefined') {
   // Content script already initialized, skipping
@@ -216,69 +214,6 @@ function extractVisibleText() {
   
   return content;
 }
-
-// --- Main Reader Mode Logic ---
-// UNUSED: Old complex function that tried to handle both plain reading and rephrasing
-// Replaced by separate enablePlainReaderMode() and enableSmartRephraseMode() functions
-/*
-async function enableReaderMode(rephrase = true, geminiApiKey = null, mem0ApiKey = null) {
-  try {
-    const article = await extractMainContent();
-    originalArticle = article;
-    rephrasedContent = null;
-    if (article) {
-      if (rephrase) {
-        showSkeletonOverlay();
-        
-        // Use memory-enhanced rephrasing if API keys are available
-        if (geminiApiKey && mem0ApiKey) {
-          try {
-            const result = await rephraseWithMemories(geminiApiKey, mem0ApiKey);
-            if (result.success) {
-              rephrasedContent = result.rephrasedContent;
-              renderReaderOverlay({
-                title: article.title,
-                content: rephrasedContent
-              }, true);
-            } else {
-              // Fallback to regular Gemini rephrasing
-              rephrasedContent = await rephraseWithGemini(article.textContent);
-              renderReaderOverlay({
-                title: article.title,
-                content: rephrasedContent
-              }, true);
-            }
-          } catch (error) {
-            console.error('Error in memory-enhanced rephrasing, falling back:', error);
-            rephrasedContent = await rephraseWithGemini(article.textContent);
-            renderReaderOverlay({
-              title: article.title,
-              content: rephrasedContent
-            }, true);
-          }
-        } else {
-          // Use regular Gemini rephrasing
-          rephrasedContent = await rephraseWithGemini(article.textContent);
-          renderReaderOverlay({
-            title: article.title,
-            content: rephrasedContent
-          }, true);
-        }
-      } else {
-        renderReaderOverlay({
-          title: article.title,
-          content: article.content
-        }, false);
-      }
-      readerModeActive = true;
-    }
-  } catch (error) {
-    removeFloatingSkeletonLoader();
-    console.error('Error in enableReaderMode:', error);
-    throw error;
-  }
-}
-*/
 
 function disableReaderMode() {
   if (overlay) {
@@ -530,31 +465,29 @@ function removeOverlay() {
 // --- Rephrase Functions ---
 async function rephraseWithGemini(text) {
   if (!geminiApiKey) throw new Error('Gemini API key not set. Please set it in the extension settings.');
-  const prompt = `Please rephrase the following text in a clear, engaging, and easy-to-read style while maintaining the original meaning and key information. Make it more conversational and user-friendly:\n\n${text}`;
-  const geminiModel = 'gemini-2.5-flash';
+  
+  // Check if MemoryEnhancedReading is available
+  if (typeof MemoryEnhancedReading === 'undefined') {
+    throw new Error('MemoryEnhancedReading library not loaded');
+  }
+  
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }]
-      })
+    // Initialize Memory Reader to use its Gemini function
+    const memoryReader = new MemoryEnhancedReading({
+      geminiApiKey: geminiApiKey,
+      userId: "chrome_extension_user"
     });
-    if (!response.ok) throw new Error('Failed to get response from Gemini API');
-    const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
+    
+    const prompt = `Please rephrase the following text in a clear, engaging, and easy-to-read style while maintaining the original meaning and key information. Render in Markdown format: --- \n\n${text}`;
+    
+    // Use the library's generateWithGemini method instead of duplicate code
+    const rephrasedText = await memoryReader.generateWithGemini(prompt);
+    return rephrasedText;
   } catch (error) {
     throw error;
   }
 }
 
-// UNUSED: Placeholder function for custom API that was never implemented
-/*
-async function rephraseWithCustomAPI(text) {
-  // Example: return await fetch('https://your-api.com/rephrase', { ... })
-  return `**[Custom API Response]**\n\n${text}`;
-}
-*/
 
 // Show a floating skeleton loader (does not hide DOM)
 function showFloatingSkeletonLoader() {
@@ -660,7 +593,7 @@ async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKe
     
     // If we got a successful result with content, use it
     if (result.success && result.rephrasedContent && result.rephrasedContent.trim().length > 0) {
-      console.log('Rephrased content:', result);
+      console.log('Rephrased content successfully');
       return result;
     } else {
       return {
@@ -678,62 +611,5 @@ async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKe
     };
   }
 }
-
-// UNUSED: This function was only called by the old enableReaderMode() function
-// Replaced by rephraseWithMemoriesUsingArticle() which is more efficient (reuses extracted article)
-/*
-async function rephraseWithMemories(geminiApiKey, mem0ApiKey) {
-  try {
-    // Check if MemoryEnhancedReading is available
-    if (typeof MemoryEnhancedReading === 'undefined') {
-      throw new Error('MemoryEnhancedReading library not loaded');
-    }
-    
-    // Extract page content first
-    const contentResult = await extractPageContentForMemory();
-    
-    if (!contentResult.success) {
-      throw new Error('Failed to extract page content');
-    }
-    
-    // Initialize Memory Reader with lower relevance threshold
-    const memoryReader = new MemoryEnhancedReading({
-      mem0ApiKey: mem0ApiKey,
-      geminiApiKey: geminiApiKey,
-      userId: "chrome_extension_user",
-      debug: false,
-      relevanceThreshold: 0.1  // Lower threshold to be more inclusive
-    });
-    
-    // Rephrase content with user memories
-    const result = await memoryReader.rephraseWithUserMemories(
-      contentResult.content,
-      {
-        includeContext: true,
-        maxMemories: 10,
-        relevanceThreshold: 0.1
-      }
-    );
-    
-    // If we got a successful result with content, use it
-    if (result.success && result.rephrasedContent && result.rephrasedContent.trim().length > 0) {
-      return result;
-    } else {
-      return {
-        success: false,
-        error: 'No content generated from memory rephrasing'
-      };
-    }
-    
-  } catch (error) {
-    console.error('❌ Error in rephraseWithMemories:', error);
-    return {
-      success: false,
-      processed: false,
-      error: error.message
-    };
-  }
-}
-*/
 
 } // End of readSmartInitialized check

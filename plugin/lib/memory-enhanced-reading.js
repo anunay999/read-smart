@@ -309,9 +309,8 @@ class MemoryEnhancedReading {
         • **Context Bridge** – 1-2 sentences.  
         • **What You Already Know** – 3-7 bullets, ≤ 8 words each.  
         • **References** – bullet list of \`[Title](URL)\` links.  
-        6. When SECTION 2 builds on a memory, append a superscript footnote marker [^n] and ensure the matching link appears in References.  
-        7. No other headings, no metadata (“8 min read”), no HTML; output must be valid Markdown.  
-        8. If any rule is broken, RESTART and fix before finalising.
+        6. No other headings, no metadata (“8 min read”), no HTML; output must be valid Markdown.  
+        7. If any rule is broken, RESTART and fix before finalising.
 
         STYLE HINTS  
         • Match the author’s vocabulary and cadence (semi-formal tech-blog).  
