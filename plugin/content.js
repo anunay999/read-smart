@@ -431,27 +431,27 @@ function renderReaderOverlay(article, isMarkdown = false) {
   overlay = document.createElement('div');
   overlay.id = 'read-smart-overlay';
   overlay.className = 'fixed inset-0 w-screen h-screen overflow-auto bg-[#f4ecd8] z-[2147483647]';
-  
-  // Create style element for better text visibility
-  const style = document.createElement('style');
-  style.textContent = `
-    #read-smart-overlay {
-      color: #3e2f1c !important;
-      background: #f4ecd8 !important;
+    #read-smart-overlay code {
+      color: #914611 !important;
+      background-color: #f1e9d2 !important;
+      padding: 2px 4px !important;
+      border-radius: 4px !important;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace !important;
+      font-size: 0.95em !important;
     }
-    #read-smart-overlay *,
-    #read-smart-overlay *:before,
-    #read-smart-overlay *:after {
-      color: #3e2f1c !important;
+    #read-smart-overlay pre {
+      color: #f4ecd8 !important;
+      background-color: #2d1b0a !important;
+      padding: 16px !important;
+      border-radius: 8px !important;
+      overflow-x: auto !important;
+    }
+    #read-smart-overlay pre code {
+      color: inherit !important;
       background-color: transparent !important;
+      padding: 0 !important;
+      border-radius: 0 !important;
     }
-    #read-smart-overlay h1, #read-smart-overlay h2, #read-smart-overlay h3, 
-    #read-smart-overlay h4, #read-smart-overlay h5, #read-smart-overlay h6 {
-      color: #5b4636 !important;
-      font-weight: bold !important;
-      background-color: transparent !important;
-    }
-    #read-smart-overlay p, #read-smart-overlay div, #read-smart-overlay span,
     #read-smart-overlay li, #read-smart-overlay td, #read-smart-overlay th,
     #read-smart-overlay article, #read-smart-overlay section {
       color: #3e2f1c !important;

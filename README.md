@@ -16,9 +16,9 @@ Read Smart transforms how you consume web content by:
 
 The extension follows a **separation of concerns** approach with two distinct operations:
 
-1. **Memory Addition** (`addPageToMemory`): 
+1. **Memory Addition** (`addPageToMemory`):
    - Extracts 3-5 key insights from content
-   - Stores them as discrete memory snippets
+   - Stores them as discrete memory snippets with the page URL as metadata
    - Focused solely on knowledge capture
 
 2. **Content Rephrasing** (`rephraseWithUserMemories`):
@@ -66,7 +66,7 @@ The extension follows a **separation of concerns** approach with two distinct op
 - **Author-Aware Rephrasing**: Maintains original writing style while personalizing content
 - **Knowledge Connections**: Shows how new content relates to existing memories
 - **Reference Links**: Recap section lists source URLs for the memories used
-- **Read Less, Learn More**: Personalized content skips what you've already stored and focuses on new insights
+- **Read Less, Learn More**: Each recap links back to your memory URLs, then jumps straight into material you haven't read yet
 - **Reader Mode Integration**: Clean reading experience with memory-enhanced content
 - **Dual-Section Output**: Main personalized content + knowledge recap
 - **Graceful Fallbacks**: Works even when memory operations fail

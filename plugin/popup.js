@@ -44,8 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
       geminiApiKeyInput.value = geminiKey;
       mem0ApiKeyInput.value = mem0Key;
       
-      // Load rephrase toggle state (default ON)
-      rephraseToggle.checked = result[STORAGE_KEYS.REPHRASE_WITH_GEMINI] !== false;
+      // Load rephrase toggle state (default OFF)
+      rephraseToggle.checked = result[STORAGE_KEYS.REPHRASE_WITH_GEMINI] === true;
       
       // Update UI based on current API key status
       updateAllUIStates();
