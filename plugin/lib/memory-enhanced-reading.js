@@ -171,7 +171,7 @@ class MemoryEnhancedReading {
     /**
      * Add memory using Mem0 API
      */
-    async addMemory(content) {
+    async addMemory(content, metadata = {}) {
         const url = `${this.baseUrl}/memories/`;
 
         // Format the request body to match the working curl example
@@ -181,6 +181,10 @@ class MemoryEnhancedReading {
             ],
             user_id: this.userId
         };
+
+        if (Object.keys(metadata).length > 0) {
+            requestBody.metadata = metadata;
+        }
 
         const options = {
             method: 'POST',
@@ -294,45 +298,42 @@ class MemoryEnhancedReading {
      */
     async rephraseContentWithMemory(content, existingMemories) {
         const memoryText = existingMemories
-            .map(mem => `• ${mem.memory}`)
+            .map(mem => {
+                const urlPart = mem.metadata && mem.metadata.url ? ` (source: ${mem.metadata.url})` : '';
+                return `• ${mem.memory}${urlPart}`;
+            })
             .join('\n');
 
         const prompt = `
-You are an expert content personalizer that adapts articles to match the reader's existing knowledge while preserving the author's unique writing style.
+You are an expert content personalizer that adapts articles to a reader's existing knowledge while preserving the author's unique writing style.
 
-TASK: Rewrite the article below in two sections, maintaining the original author's tone, style, and personality.
+TASK
+Rewrite the article below in the original author's voice. Provide exactly two markdown sections.
 
-READER'S EXISTING KNOWLEDGE:
+READER KNOWLEDGE
 ${memoryText}
 
-ORIGINAL CONTENT:
+ORIGINAL ARTICLE
 ${content}
 
-INSTRUCTIONS:
-1. **Analyze the author's writing style**: Note their tone (formal/casual), personality (humorous/serious), vocabulary level, sentence structure, and any unique expressions or patterns.
+GUIDELINES
+1. Study the author's tone, vocabulary, and sentence structure.
+2. Produce two sections:
 
-2. **Create exactly TWO sections**:
+## SECTION 1 – Personalized Content
+- Present the article in the same style and voice.
+- Weave in references to the reader's knowledge when relevant.
+- Highlight new information without repeating what they already know.
 
-**SECTION 1: PERSONALIZED MAIN CONTENT**
-- Rewrite the main content in the author's exact style and voice
-- Reference the reader's existing knowledge naturally (e.g., "Building on your understanding of...", "As you already know from...")
-- Emphasize NEW information that complements what they already know
-- Skip or briefly mention concepts they're already familiar with
-- Keep the author's personality and unique expressions intact
+## SECTION 2 – Knowledge Connection Recap
+- Briefly explain how the article connects to prior knowledge.
+- Keep this recap conversational and in the author's style.
+- After the recap, add a **References** list linking to any provided memory URLs.
 
-**SECTION 2: KNOWLEDGE CONNECTION RECAP**
-- Create a brief "What You Already Know" or "Connecting the Dots" section
-- Summarize how this content relates to their existing knowledge
-- Written in the same author's style but more conversational
-- Help the reader see patterns and connections
-
-CRITICAL REQUIREMENTS:
-- Maintain the author's exact writing style, tone, and personality
-- Keep all the author's unique phrases, humor, or distinctive voice
-- The content should feel like the original author wrote it specifically for this reader
-- Both sections should feel cohesive and natural
-
-Return the rephrased content with clear section headers:`;
+CRITICAL REQUIREMENTS
+- Maintain the author's exact writing style and unique expressions.
+- Ensure both sections feel cohesive and natural.
+`;
 
         try {
             const rephrasedContent = await this.generateWithGemini(prompt);
@@ -347,7 +348,7 @@ Return the rephrased content with clear section headers:`;
     /**
      * Add page content to memory (generate snippets and store them)
      */
-    async addPageToMemory(content) {
+    async addPageToMemory(content, pageUrl = '') {
         this.log('Starting memory addition process...');
 
         try {
@@ -367,7 +368,7 @@ Return the rephrased content with clear section headers:`;
 
             // Add snippets to memory
             this.log('Adding snippets to memory...');
-            const addPromises = snippets.map(snippet => this.addMemory(snippet));
+            const addPromises = snippets.map(snippet => this.addMemory(snippet, { url: pageUrl }));
             await Promise.all(addPromises);
             this.log(`Successfully added ${snippets.length} snippets to memory`);
 

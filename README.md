@@ -65,6 +65,7 @@ The extension follows a **separation of concerns** approach with two distinct op
 - **Smart Memory Creation**: Automatically extracts 3-5 key insights from any webpage
 - **Author-Aware Rephrasing**: Maintains original writing style while personalizing content
 - **Knowledge Connections**: Shows how new content relates to existing memories
+- **Reference Links**: Recap section lists source URLs for the memories used
 - **Reader Mode Integration**: Clean reading experience with memory-enhanced content
 - **Dual-Section Output**: Main personalized content + knowledge recap
 - **Graceful Fallbacks**: Works even when memory operations fail

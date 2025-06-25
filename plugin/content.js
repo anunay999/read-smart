@@ -667,7 +667,8 @@ async function addPageToMemory(geminiApiKey, mem0ApiKey) {
     
     // Add page content to memory only
     console.log('💾 Adding page content to memory...');
-    const result = await memoryReader.addPageToMemory(contentResult.content);
+    const pageUrl = window.location.href;
+    const result = await memoryReader.addPageToMemory(contentResult.content, pageUrl);
     
     console.log('📊 Memory addition completed:', result);
     return result;
