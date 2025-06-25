@@ -218,6 +218,9 @@ function extractVisibleText() {
 }
 
 // --- Main Reader Mode Logic ---
+// UNUSED: Old complex function that tried to handle both plain reading and rephrasing
+// Replaced by separate enablePlainReaderMode() and enableSmartRephraseMode() functions
+/*
 async function enableReaderMode(rephrase = true, geminiApiKey = null, mem0ApiKey = null) {
   try {
     const article = await extractMainContent();
@@ -275,6 +278,7 @@ async function enableReaderMode(rephrase = true, geminiApiKey = null, mem0ApiKey
     throw error;
   }
 }
+*/
 
 function disableReaderMode() {
   if (overlay) {
@@ -315,14 +319,23 @@ async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
     originalArticle = article;
     
     // Show skeleton loading overlay (this hides DOM and shows skeleton)
+    console.log('Showing skeleton overlay');
     showSkeletonOverlay();
     
+    // Ensure skeleton is visible for at least 1 second for user to see
+    const minDisplayTime = new Promise(resolve => setTimeout(resolve, 1000));
+    
     // Use memory-enhanced rephrasing with the same content extraction as reader mode
+    let rephrasePromise;
     try {
-      const result = await rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKey);
+      console.log('Rephrasing with memories using article');
+      rephrasePromise = rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKey);
+      const result = await rephrasePromise;
       if (result.success) {
         rephrasedContent = result.rephrasedContent;
-        // Explicitly remove skeleton overlay and show rephrased content
+        // Wait for minimum display time, then show content
+        await minDisplayTime;
+        console.log('Removing skeleton and showing rephrased content');
         removeOverlay();
         await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure clean transition
         renderReaderOverlay({
@@ -330,9 +343,12 @@ async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
           content: rephrasedContent
         }, true);
       } else {
+        console.log('Fallback to regular Gemini rephrasing');
         // Fallback to regular Gemini rephrasing
         rephrasedContent = await rephraseWithGemini(article.textContent);
-        // Explicitly remove skeleton overlay and show rephrased content
+        // Wait for minimum display time, then show content
+        await minDisplayTime;
+        console.log('Removing skeleton and showing gemini content');
         removeOverlay();
         await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure clean transition
         renderReaderOverlay({
@@ -343,7 +359,9 @@ async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
     } catch (error) {
       console.error('Error in memory-enhanced rephrasing, falling back:', error);
       rephrasedContent = await rephraseWithGemini(article.textContent);
-      // Explicitly remove skeleton overlay and show rephrased content
+      // Wait for minimum display time, then show content
+      await minDisplayTime;
+      console.log('Removing skeleton and showing fallback content');
       removeOverlay();
       await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure clean transition
       renderReaderOverlay({
@@ -439,7 +457,7 @@ function renderReaderOverlay(article, isMarkdown = false) {
     link.id = 'read-smart-reader-styles';
     link.rel = 'stylesheet';
     link.type = 'text/css';
-    link.href = chrome.runtime.getURL('reader-styles.css');
+    link.href = chrome.runtime.getURL('src/css/reader-styles.css');
     document.head.appendChild(link);
   }
   
@@ -460,48 +478,41 @@ function renderReaderOverlay(article, isMarkdown = false) {
   document.body.appendChild(overlay);
 }
 
-function showSkeletonOverlay() {
-  // Ensure clean state - remove any existing overlays first
-  removeOverlay();
-  removeFloatingSkeletonLoader();
+// Inject skeleton CSS if not already present
+function injectSkeletonCSS() {
+  if (document.getElementById('read-smart-skeleton-css')) return;
   
-  // Hide DOM content
+  const link = document.createElement('link');
+  link.id = 'read-smart-skeleton-css';
+  link.rel = 'stylesheet';
+  link.type = 'text/css';
+  link.href = chrome.runtime.getURL('src/css/skeleton.css');
+  document.head.appendChild(link);
+}
+
+function showSkeletonOverlay() {
+  console.log('Creating skeleton overlay');
+  injectSkeletonCSS();
   hideDOMExceptOverlay();
+  removeOverlay();
   
   overlay = document.createElement('div');
   overlay.id = 'read-smart-overlay';
-  overlay.className = 'fixed inset-0 w-screen h-screen overflow-auto bg-[#f4ecd8] z-[2147483647] flex items-center';
-  // Inject reader styles if not already present
-  if (!document.getElementById('read-smart-reader-styles')) {
-    const link = document.createElement('link');
-    link.id = 'read-smart-reader-styles';
-    link.rel = 'stylesheet';
-    link.type = 'text/css';
-    link.href = chrome.runtime.getURL('reader-styles.css');
-    document.head.appendChild(link);
-  }
+  overlay.className = 'skeleton-overlay';
   
   overlay.innerHTML = `
-    <div class="skeleton-container" style="opacity: 0; animation: fadeIn 0.3s ease-in forwards;">
-      <div class="skeleton-title" style="height: 3rem; width: 60%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; margin-bottom: 2rem;"></div>
-      <div class="skeleton-line" style="height: 1rem; width: 100%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; margin-bottom: 1rem;"></div>
-      <div class="skeleton-line" style="height: 1rem; width: 95%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; margin-bottom: 1rem;"></div>
-      <div class="skeleton-line" style="height: 1rem; width: 90%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; margin-bottom: 1rem;"></div>
-      <div class="skeleton-line" style="height: 1rem; width: 85%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; margin-bottom: 2rem;"></div>
-      <div class="skeleton-line" style="height: 1rem; width: 100%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; margin-bottom: 1rem;"></div>
-      <div class="skeleton-line" style="height: 1rem; width: 88%; background: linear-gradient(90deg, #e8dcc6 25%, #f0e6d6 50%, #e8dcc6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; margin-bottom: 1rem;"></div>
+    <div class="skeleton-container">
+      <div class="skeleton-title"></div>
+      <div class="skeleton-line"></div>
+      <div class="skeleton-line"></div>
+      <div class="skeleton-line"></div>
+      <div class="skeleton-line"></div>
+      <div class="skeleton-line"></div>
     </div>
-    <style>
-      @keyframes shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
-      }
-      @keyframes fadeIn {
-        to { opacity: 1; }
-      }
-    </style>
   `;
+  
   document.body.appendChild(overlay);
+  console.log('Skeleton overlay created and added to body');
 }
 
 function hideDOMExceptOverlay() {
@@ -537,11 +548,13 @@ async function rephraseWithGemini(text) {
   }
 }
 
-// TODO: Replace this stub with your actual API call
+// UNUSED: Placeholder function for custom API that was never implemented
+/*
 async function rephraseWithCustomAPI(text) {
   // Example: return await fetch('https://your-api.com/rephrase', { ... })
   return `**[Custom API Response]**\n\n${text}`;
 }
+*/
 
 // Show a floating skeleton loader (does not hide DOM)
 function showFloatingSkeletonLoader() {
@@ -554,7 +567,7 @@ function showFloatingSkeletonLoader() {
   skeleton.style.transform = 'translateX(-50%)';
   skeleton.style.zIndex = '2147483647';
   skeleton.innerHTML = `
-    <div class="skeleton-loader" style="max-width: 800px; padding: 32px; background: #f4ecd8; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,0.08);">
+    <div class="skeleton-loader" style="max-width: 800px; padding: 32px; background: #f8f3eb; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,0.08);">
       <div class="skeleton-title" style="height: 2.2rem; width: 60%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
       <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
       <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
@@ -620,6 +633,7 @@ async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKe
   try {
     // Check if MemoryEnhancedReading is available
     if (typeof MemoryEnhancedReading === 'undefined') {
+      console.log('MemoryEnhancedReading library not loaded');
       throw new Error('MemoryEnhancedReading library not loaded');
     }
     
@@ -629,8 +643,10 @@ async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKe
       geminiApiKey: geminiApiKey,
       userId: "chrome_extension_user",
       debug: false,
-      relevanceThreshold: 0.1  // Lower threshold to be more inclusive
+      relevanceThreshold: 0.6  // Lower threshold to be more inclusive
     });
+
+    console.log('Article text content:', article);
     
     // Rephrase content with user memories
     const result = await memoryReader.rephraseWithUserMemories(
@@ -644,6 +660,7 @@ async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKe
     
     // If we got a successful result with content, use it
     if (result.success && result.rephrasedContent && result.rephrasedContent.trim().length > 0) {
+      console.log('Rephrased content:', result);
       return result;
     } else {
       return {
@@ -662,7 +679,9 @@ async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKe
   }
 }
 
-// Rephrase content with user memories using MemoryEnhancedReading library  
+// UNUSED: This function was only called by the old enableReaderMode() function
+// Replaced by rephraseWithMemoriesUsingArticle() which is more efficient (reuses extracted article)
+/*
 async function rephraseWithMemories(geminiApiKey, mem0ApiKey) {
   try {
     // Check if MemoryEnhancedReading is available
@@ -715,5 +734,6 @@ async function rephraseWithMemories(geminiApiKey, mem0ApiKey) {
     };
   }
 }
+*/
 
 } // End of readSmartInitialized check

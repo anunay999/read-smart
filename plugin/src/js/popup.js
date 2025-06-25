@@ -24,8 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // API key storage keys
   const STORAGE_KEYS = {
     GEMINI_API_KEY: 'geminiApiKey',
-    MEM0_API_KEY: 'mem0ApiKey',
-    REPHRASE_WITH_GEMINI: 'rephraseWithGemini'
+    MEM0_API_KEY: 'mem0ApiKey'
   };
 
   // Load saved states and API keys
@@ -33,8 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const result = await chrome.storage.sync.get([
         STORAGE_KEYS.GEMINI_API_KEY, 
-        STORAGE_KEYS.MEM0_API_KEY, 
-        STORAGE_KEYS.REPHRASE_WITH_GEMINI
+        STORAGE_KEYS.MEM0_API_KEY
       ]);
       
       // Load API keys into input fields
@@ -44,8 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
       geminiApiKeyInput.value = geminiKey;
       mem0ApiKeyInput.value = mem0Key;
       
-      // Load rephrase toggle state (default ON)
-      rephraseToggle.checked = result[STORAGE_KEYS.REPHRASE_WITH_GEMINI] === true;
+      // Don't set toggle states from storage - they should reflect actual page state
+      // Toggle states will be set by checkInitialState() based on actual content script state
+      rephraseToggle.checked = false;
+      readerModeToggle.checked = false;
       
       // Update UI based on current API key status
       updateAllUIStates();
@@ -304,8 +304,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Handle rephrase toggle
   rephraseToggle.addEventListener('change', async () => {
-    await chrome.storage.sync.set({ [STORAGE_KEYS.REPHRASE_WITH_GEMINI]: rephraseToggle.checked });
-    
     if (rephraseToggle.checked) {
       // Disable reader mode when smart rephrase is enabled
       readerModeToggle.checked = false;
@@ -320,7 +318,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (readerModeToggle.checked) {
       // Disable smart rephrase when reader mode is enabled
       rephraseToggle.checked = false;
-      await chrome.storage.sync.set({ [STORAGE_KEYS.REPHRASE_WITH_GEMINI]: false });
       await enableReaderMode();
     } else {
       await disableReaderMode();
@@ -451,6 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
       if (tab) {
+        // Try to get state from content script
         const response = await chrome.tabs.sendMessage(tab.id, {action: "getState"});
         if (response) {
           if (response.readerModeActive) {
@@ -461,11 +459,22 @@ document.addEventListener('DOMContentLoaded', () => {
             rephraseToggle.checked = true;
             statusText.textContent = 'Smart rephrase active';
             statusText.className = 'status active';
+          } else {
+            // Content script is loaded but no special mode is active
+            statusText.textContent = 'Normal reading mode';
+            statusText.className = 'status';
           }
+        } else {
+          // No response from content script - fresh page state
+          statusText.textContent = 'Normal reading mode';
+          statusText.className = 'status';
         }
       }
     } catch (error) {
-      // Error checking initial state, tab might not have content script
+      // Error checking initial state, content script not loaded or page just loaded
+      // This is normal for fresh page loads - default to normal state
+      statusText.textContent = 'Normal reading mode';
+      statusText.className = 'status';
     }
   }
 

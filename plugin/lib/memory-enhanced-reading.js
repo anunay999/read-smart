@@ -53,6 +53,7 @@ class MemoryEnhancedReading {
      * Generate content using Gemini API
      */
     async generateWithGemini(prompt) {
+        console.log('Generating with Gemini');
         const requestBody = {
             contents: [{
                 parts: [{
@@ -60,6 +61,8 @@ class MemoryEnhancedReading {
                 }]
             }]
         };
+
+        console.log('Request body:', requestBody);
 
         const options = {
             method: 'POST',
@@ -281,6 +284,7 @@ class MemoryEnhancedReading {
      * Rephrase content based on existing user memories, matching author's writing style
      */
     async rephraseContentWithMemory(content, existingMemories) {
+        console.log('Rephrasing content with memory');
         const memoryText = existingMemories
             .map(mem => {
                 const urlPart = mem.metadata && mem.metadata.url ? ` (source: ${mem.metadata.url})` : '';
@@ -289,55 +293,51 @@ class MemoryEnhancedReading {
             .join('\n');
 
         const prompt = `
-            You are an elite content personaliser.
+        You are an elite content-personaliser.
 
-            🎯 GOAL  
-            Rewrite the article so it feels like the original author, but shows the reader **only what’s new** and links back to their saved memories.
+        GOAL  
+        Rewrite the article in the author’s voice, only covering NEW information for the reader, and tightly link back to their stored memories.
 
-            🚦 HARD RULES (do NOT break)  
-            1. Output **exactly** the two top-level headings shown below and nothing else.  
-            2. Finish writing immediately after “## SECTION 2 – Fresh Content in Author’s Voice” content.  
-            3. Max 900 words total; no paragraph longer than 3 sentences.  
-            4. Use at least one sub-heading or bullet group every 120 words inside Section 2.  
-            5. Add footnote markers [^n] whenever a new idea builds on a memory and map them to links in Section 1.  
-            6. Produce valid Markdown; links must be `[Text](URL)`.
+        HARD RULES  ❗
+        1. Output **exactly** two top-level headings, in this order (no pre-amble, no epilogue):  
+        ## SECTION 1 – Recap & References  
+        ## SECTION 2 – Fresh Content in Author’s Voice  
+        2. Stop writing immediately after SECTION 2.  
+        3. Max **900 words** total; max **3 sentences** per paragraph.  
+        4. Insert a sub-heading or bullet block at least every **120 words** within SECTION 2.  
+        5. In SECTION 1:  
+        • **Context Bridge** – 1-2 sentences.  
+        • **What You Already Know** – 3-7 bullets, ≤ 8 words each.  
+        • **References** – bullet list of \`[Title](URL)\` links.  
+        6. When SECTION 2 builds on a memory, append a superscript footnote marker [^n] and ensure the matching link appears in References.  
+        7. No other headings, no metadata (“8 min read”), no HTML; output must be valid Markdown.  
+        8. If any rule is broken, RESTART and fix before finalising.
 
-            📄 TEMPLATE (copy verbatim)
+        STYLE HINTS  
+        • Match the author’s vocabulary and cadence (semi-formal tech-blog).  
+        • Bold key take-aways, italicise pivotal terms, use \`> block-quotes\` sparingly.  
+        • Replace filler like “Let’s be real” unless in the original.
 
-            ## SECTION 1 – Recap & References  
-            **Context Bridge** (≤ 2 sentences): Explain how the reader’s memories relate to the article.  
-            **What You Already Know**  
-            - ⬩ Bullet existing ideas (≤ 8 words each).  
-            **References**  
-            - ⬩ \`[Title 1](URL)\`  
-            - ⬩ \`[Title 2](URL)\`
+        INPUTS  
+        READER_MEMORIES  
+        ${memoryText}
 
-            ## SECTION 2 – Fresh Content in Author’s Voice  
-            *Rewrite the remaining material…*
+        ORIGINAL_ARTICLE  
+        ${content}
 
-            🔧 STYLE HINTS  
-            • Mirror the author’s vocabulary and rhythm.  
-            • Bold key take-aways, italicise pivotal terms, use `> block-quotes` sparingly.  
-            • Keep sentences active and positive.  
-            • Avoid filler like “let’s be real” unless present in the original.
-
-            ────────────────────────────────────────
-            INPUTS  
-            READER MEMORIES  
-            ${memoryText}
-
-            ORIGINAL ARTICLE  
-            ${content}
-            ────────────────────────────────────────
-            REMEMBER  
-            - Don’t repeat memory snippets verbatim.  
-            - No headings besides the two specified.  
-            - Stop after finishing Section 2.`;
-
+        REMEMBER  
+        – Do NOT repeat memory passages verbatim.  
+        – The reader scans in a small popup; keep visuals punchy.  
+        – Comply with all HARD RULES.    
+        You will be eliminated if you do not follow these rules.
+        `;
+        
         try {
+    
             const rephrasedContent = await this.generateWithGemini(prompt);
             return rephrasedContent;
         } catch (error) {
+            console.log('Error rephrasing content:', error);
             return content; // Return original content if rephrasing fails
         }
     }
@@ -362,6 +362,8 @@ class MemoryEnhancedReading {
             // Add snippets to memory
             const addPromises = snippets.map(snippet => this.addMemory(snippet, { url: pageUrl }));
             await Promise.all(addPromises);
+
+            console.log('Snippets added to memory:', snippets);
 
             return {
                 success: true,

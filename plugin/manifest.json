@@ -15,15 +15,15 @@
       "https://api.mem0.ai/*"
     ],
     "action": {
-      "default_popup": "popup.html",
+      "default_popup": "src/html/popup.html",
       "default_icon": {
-        "16": "icons/icon16.png",
-        "48": "icons/icon48.png",
-        "128": "icons/icon128.png"
+        "16": "assets/icons/icon16.png",
+        "48": "assets/icons/icon48.png",
+        "128": "assets/icons/icon128.png"
       }
     },
     "background": {
-      "service_worker": "background.js",
+      "service_worker": "src/js/background.js",
       "type": "module"
     },
     "content_scripts": [
@@ -33,7 +33,7 @@
           "lib/Readability.js", 
           "lib/marked.min.js", 
           "lib/memory-enhanced-reading.js", 
-          "content.js"
+          "src/js/content.js"
         ],
         "css": [
           "lib/tailwind.min.css"
@@ -49,9 +49,9 @@
           "lib/marked.min.js", 
           "lib/memory-enhanced-reading.js",
           "lib/tailwind.min.css",
-          "reader-styles.css",
-          "styles.css"
-
+          "src/css/reader-styles.css",
+          "src/css/styles.css",
+          "src/css/skeleton.css"
         ],
         "matches": ["<all_urls>"]
       }

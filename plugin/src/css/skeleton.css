@@ -1,0 +1,107 @@
+/* Read Smart - Skeleton Loading Styles */
+
+/* Skeleton Overlay Container */
+.skeleton-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(135deg, #e8dcc6 0%, #ddd0b8 100%);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
+
+/* Skeleton Container */
+.skeleton-container {
+  max-width: 1000px;
+  width: calc(100% - 80px);
+  padding: 60px;
+  background: linear-gradient(135deg, #f8f3eb 0%, #f4ecd8 100%);
+  border-radius: 16px;
+  box-shadow: 
+    0 20px 40px rgba(139, 69, 19, 0.12),
+    0 8px 16px rgba(139, 69, 19, 0.08),
+    0 4px 8px rgba(139, 69, 19, 0.06);
+  border: 1px solid rgba(212, 165, 116, 0.4);
+}
+
+/* Skeleton Elements */
+.skeleton-title {
+  height: 48px;
+  width: 60%;
+  background: #e0d6c3;
+  border-radius: 8px;
+  margin-bottom: 32px;
+  animation: skeletonPulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-line {
+  height: 20px;
+  background: #e0d6c3;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  animation: skeletonPulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-line:nth-child(2) { width: 100%; animation-delay: 0.2s; }
+.skeleton-line:nth-child(3) { width: 100%; animation-delay: 0.4s; }
+.skeleton-line:nth-child(4) { width: 100%; animation-delay: 0.6s; }
+.skeleton-line:nth-child(5) { width: 80%; margin-bottom: 32px; animation-delay: 0.8s; }
+.skeleton-line:nth-child(6) { width: 100%; animation-delay: 1s; }
+
+/* Skeleton Animation */
+@keyframes skeletonPulse {
+  0%, 100% { 
+    opacity: 1; 
+  }
+  50% { 
+    opacity: 0.4; 
+  }
+}
+
+/* Responsive Skeleton Styles */
+@media (max-width: 1200px) {
+  .skeleton-container {
+    width: calc(100% - 60px);
+    padding: 50px;
+  }
+}
+
+@media (max-width: 768px) {
+  .skeleton-container {
+    width: calc(100% - 40px);
+    padding: 40px;
+  }
+  
+  .skeleton-title {
+    height: 40px;
+    margin-bottom: 24px;
+  }
+  
+  .skeleton-line {
+    height: 16px;
+    margin-bottom: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .skeleton-container {
+    width: calc(100% - 20px);
+    padding: 30px;
+    border-radius: 12px;
+  }
+  
+  .skeleton-title {
+    height: 36px;
+    margin-bottom: 20px;
+  }
+  
+  .skeleton-line {
+    height: 14px;
+    margin-bottom: 10px;
+  }
+} 
