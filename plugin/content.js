@@ -633,10 +633,6 @@ async function addPageToMemory(geminiApiKey, mem0ApiKey) {
 // Rephrase content with user memories using already extracted article
 async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKey) {
   console.log('🔄 Starting content rephrasing with memories using article...');
-  
-  try {
-    // Check if MemoryEnhancedReading is available
-    if (typeof MemoryEnhancedReading === 'undefined') {
       throw new Error('MemoryEnhancedReading library not loaded');
     }
     
@@ -694,10 +690,6 @@ async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKe
 // Rephrase content with user memories using MemoryEnhancedReading library  
 async function rephraseWithMemories(geminiApiKey, mem0ApiKey) {
   console.log('🔄 Starting content rephrasing with memories...');
-  
-  try {
-    // Check if MemoryEnhancedReading is available
-    if (typeof MemoryEnhancedReading === 'undefined') {
       throw new Error('MemoryEnhancedReading library not loaded');
     }
     
