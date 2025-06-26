@@ -51,7 +51,9 @@
           "lib/tailwind.min.css",
           "src/css/reader-styles.css",
           "src/css/styles.css",
-          "src/css/skeleton.css"
+          "src/css/skeleton.css",
+          "src/html/skeleton.html",
+          "src/html/reader.html"
         ],
         "matches": ["<all_urls>"]
       }

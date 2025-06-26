@@ -5,6 +5,8 @@
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
   background: linear-gradient(135deg, #e8dcc6 0%, #ddd0b8 100%) !important;
@@ -13,95 +15,101 @@
   align-items: center !important;
   justify-content: center !important;
   overflow: auto !important;
+  box-sizing: border-box !important;
 }
 
 /* Skeleton Container */
 .skeleton-container {
-  max-width: 1000px;
-  width: calc(100% - 80px);
-  padding: 60px;
-  background: linear-gradient(135deg, #f8f3eb 0%, #f4ecd8 100%);
-  border-radius: 16px;
+  max-width: 1000px !important;
+  width: calc(100% - 80px) !important;
+  padding: 60px !important;
+  background: linear-gradient(135deg, #f8f3eb 0%, #f4ecd8 100%) !important;
+  border-radius: 16px !important;
   box-shadow: 
     0 20px 40px rgba(139, 69, 19, 0.12),
     0 8px 16px rgba(139, 69, 19, 0.08),
-    0 4px 8px rgba(139, 69, 19, 0.06);
-  border: 1px solid rgba(212, 165, 116, 0.4);
+    0 4px 8px rgba(139, 69, 19, 0.06) !important;
+  border: 1px solid rgba(212, 165, 116, 0.4) !important;
+  box-sizing: border-box !important;
 }
 
 /* Skeleton Elements */
 .skeleton-title {
-  height: 48px;
-  width: 60%;
-  background: #e0d6c3;
-  border-radius: 8px;
-  margin-bottom: 32px;
-  animation: skeletonPulse 1.5s ease-in-out infinite;
+  height: 48px !important;
+  width: 60% !important;
+  background: #e0d6c3 !important;
+  border-radius: 8px !important;
+  margin-bottom: 32px !important;
+  animation: skeletonPulse 1.5s ease-in-out infinite !important;
+  display: block !important;
+  box-sizing: border-box !important;
 }
 
 .skeleton-line {
-  height: 20px;
-  background: #e0d6c3;
-  border-radius: 4px;
-  margin-bottom: 16px;
-  animation: skeletonPulse 1.5s ease-in-out infinite;
+  height: 20px !important;
+  background: #e0d6c3 !important;
+  border-radius: 4px !important;
+  margin-bottom: 16px !important;
+  animation: skeletonPulse 1.5s ease-in-out infinite !important;
+  display: block !important;
+  box-sizing: border-box !important;
 }
 
-.skeleton-line:nth-child(2) { width: 100%; animation-delay: 0.2s; }
-.skeleton-line:nth-child(3) { width: 100%; animation-delay: 0.4s; }
-.skeleton-line:nth-child(4) { width: 100%; animation-delay: 0.6s; }
-.skeleton-line:nth-child(5) { width: 80%; margin-bottom: 32px; animation-delay: 0.8s; }
-.skeleton-line:nth-child(6) { width: 100%; animation-delay: 1s; }
+.skeleton-line:nth-child(3) { width: 100% !important; animation-delay: 0.2s !important; }
+.skeleton-line:nth-child(4) { width: 100% !important; animation-delay: 0.4s !important; }
+.skeleton-line:nth-child(5) { width: 100% !important; animation-delay: 0.6s !important; }
+.skeleton-line:nth-child(6) { width: 80% !important; margin-bottom: 32px !important; animation-delay: 0.8s !important; }
+.skeleton-line:nth-child(7) { width: 100% !important; animation-delay: 1s !important; }
 
 /* Skeleton Animation */
 @keyframes skeletonPulse {
   0%, 100% { 
-    opacity: 1; 
+    opacity: 1 !important; 
   }
   50% { 
-    opacity: 0.4; 
+    opacity: 0.4 !important; 
   }
 }
 
 /* Responsive Skeleton Styles */
 @media (max-width: 1200px) {
   .skeleton-container {
-    width: calc(100% - 60px);
-    padding: 50px;
+    width: calc(100% - 60px) !important;
+    padding: 50px !important;
   }
 }
 
 @media (max-width: 768px) {
   .skeleton-container {
-    width: calc(100% - 40px);
-    padding: 40px;
+    width: calc(100% - 40px) !important;
+    padding: 40px !important;
   }
   
   .skeleton-title {
-    height: 40px;
-    margin-bottom: 24px;
+    height: 40px !important;
+    margin-bottom: 24px !important;
   }
   
   .skeleton-line {
-    height: 16px;
-    margin-bottom: 12px;
+    height: 16px !important;
+    margin-bottom: 12px !important;
   }
 }
 
 @media (max-width: 480px) {
   .skeleton-container {
-    width: calc(100% - 20px);
-    padding: 30px;
-    border-radius: 12px;
+    width: calc(100% - 20px) !important;
+    padding: 30px !important;
+    border-radius: 12px !important;
   }
   
   .skeleton-title {
-    height: 36px;
-    margin-bottom: 20px;
+    height: 36px !important;
+    margin-bottom: 20px !important;
   }
   
   .skeleton-line {
-    height: 14px;
-    margin-bottom: 10px;
+    height: 14px !important;
+    margin-bottom: 10px !important;
   }
 } 

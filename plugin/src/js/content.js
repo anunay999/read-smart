@@ -235,7 +235,7 @@ async function enablePlainReaderMode() {
     const article = await extractMainContent();
     originalArticle = article;
     
-    renderReaderOverlay({
+    await renderReaderOverlay({
       title: article.title,
       content: article.content
     }, false);
@@ -273,7 +273,7 @@ async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
         console.log('Removing skeleton and showing rephrased content');
         removeOverlay();
         await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure clean transition
-        renderReaderOverlay({
+        await renderReaderOverlay({
           title: article.title,
           content: rephrasedContent
         }, true);
@@ -286,7 +286,7 @@ async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
         console.log('Removing skeleton and showing gemini content');
         removeOverlay();
         await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure clean transition
-        renderReaderOverlay({
+        await renderReaderOverlay({
           title: article.title,
           content: rephrasedContent
         }, true);
@@ -299,7 +299,7 @@ async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
       console.log('Removing skeleton and showing fallback content');
       removeOverlay();
       await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure clean transition
-      renderReaderOverlay({
+      await renderReaderOverlay({
         title: article.title,
         content: rephrasedContent
       }, true);
@@ -374,7 +374,7 @@ function fixLazyLoadedImages(doc) {
 }
 
 // --- Overlay Rendering ---
-function renderReaderOverlay(article, isMarkdown = false) {
+async function renderReaderOverlay(article, isMarkdown = false) {
   // Ensure clean state - remove any existing overlays first
   removeOverlay();
   removeFloatingSkeletonLoader();
@@ -394,21 +394,32 @@ function renderReaderOverlay(article, isMarkdown = false) {
     link.type = 'text/css';
     link.href = chrome.runtime.getURL('src/css/reader-styles.css');
     document.head.appendChild(link);
+  } else {
+    // Re-enable reader styles if they were disabled
+    const readerStyles = document.getElementById('read-smart-reader-styles');
+    if (readerStyles) {
+      readerStyles.disabled = false;
+    }
   }
   
-  overlay.innerHTML = `
-    <div class="max-w-5xl mx-auto my-8 p-12 bg-transparent rounded-2xl shadow-2xl font-serif leading-relaxed">
-      <header class="mb-12 pb-6 border-b-2 border-amber-200">
-        <h1 class="text-4xl md:text-5xl mb-4 font-bold tracking-tight text-stone-900">${article.title}</h1>
-        <div class="flex items-center gap-4 text-sm text-stone-600">
-          <span class="px-3 py-1 bg-amber-100 rounded-full">Enhanced Reading Mode</span>
-        </div>
-      </header>
-      <main id="reader-content" class="prose prose-xl prose-stone max-w-none">
-        ${isMarkdown && window.marked ? window.marked.parse(article.content) : article.content}
-      </main>
-    </div>
-  `;
+  // Load reader HTML structure
+  try {
+    const response = await fetch(chrome.runtime.getURL('src/html/reader.html'));
+    const readerHTML = await response.text();
+    
+    // Process content based on markdown setting
+    const processedContent = isMarkdown && window.marked ? window.marked.parse(article.content) : article.content;
+    
+    // Replace placeholders with actual content
+    const finalHTML = readerHTML
+      .replace('{{TITLE}}', article.title)
+      .replace('{{CONTENT}}', processedContent);
+    
+    overlay.innerHTML = finalHTML;
+  } catch (error) {
+    console.error('Failed to load reader HTML:', error);
+    throw new Error('Reader HTML file could not be loaded');
+  }
   
   document.body.appendChild(overlay);
 }
@@ -441,149 +452,34 @@ async function showSkeletonOverlay() {
   // Reset overlay variable
   overlay = null;
   
+  // Temporarily disable reader styles to prevent conflicts
+  const readerStyles = document.getElementById('read-smart-reader-styles');
+  if (readerStyles) {
+    readerStyles.disabled = true;
+  }
+  
   // Hide DOM content
   hideDOMExceptOverlay();
+  
+  // Inject skeleton CSS
+  injectSkeletonCSS();
   
   // Small delay to ensure DOM cleanup is complete
   await new Promise(resolve => setTimeout(resolve, 100));
   
   overlay = document.createElement('div');
   overlay.id = 'read-smart-overlay';
+  overlay.className = 'skeleton-overlay';
   
-  // Use completely inline styles to avoid any CSS conflicts
-  overlay.style.cssText = `
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    min-width: 100vw !important;
-    min-height: 100vh !important;
-    max-width: 100vw !important;
-    max-height: 100vh !important;
-    background: linear-gradient(135deg, #e8dcc6 0%, #ddd0b8 100%) !important;
-    z-index: 2147483647 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    overflow: auto !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    outline: none !important;
-    box-sizing: border-box !important;
-    transform: none !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    pointer-events: auto !important;
-  `;
-  
-  overlay.innerHTML = `
-    <div style="
-      max-width: 1000px !important;
-      width: calc(100% - 80px) !important;
-      padding: 60px !important;
-      background: linear-gradient(135deg, #f8f3eb 0%, #f4ecd8 100%) !important;
-      border-radius: 16px !important;
-      box-shadow: 0 20px 40px rgba(139, 69, 19, 0.12), 0 8px 16px rgba(139, 69, 19, 0.08), 0 4px 8px rgba(139, 69, 19, 0.06) !important;
-      border: 1px solid rgba(212, 165, 116, 0.4) !important;
-      box-sizing: border-box !important;
-      display: block !important;
-      position: relative !important;
-    ">
-      <div style="
-        height: 48px !important;
-        width: 60% !important;
-        background: #e0d6c3 !important;
-        background-color: #e0d6c3 !important;
-        border-radius: 8px !important;
-        margin-bottom: 32px !important;
-        animation: skeletonPulse 1.5s ease-in-out infinite !important;
-        display: block !important;
-        box-sizing: border-box !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-      "></div>
-      <div style="
-        height: 20px !important;
-        width: 100% !important;
-        background: #e0d6c3 !important;
-        background-color: #e0d6c3 !important;
-        border-radius: 4px !important;
-        margin-bottom: 16px !important;
-        animation: skeletonPulse 1.5s ease-in-out infinite !important;
-        animation-delay: 0.2s !important;
-        display: block !important;
-        box-sizing: border-box !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-      "></div>
-      <div style="
-        height: 20px !important;
-        width: 100% !important;
-        background: #e0d6c3 !important;
-        background-color: #e0d6c3 !important;
-        border-radius: 4px !important;
-        margin-bottom: 16px !important;
-        animation: skeletonPulse 1.5s ease-in-out infinite !important;
-        animation-delay: 0.4s !important;
-        display: block !important;
-        box-sizing: border-box !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-      "></div>
-      <div style="
-        height: 20px !important;
-        width: 100% !important;
-        background: #e0d6c3 !important;
-        background-color: #e0d6c3 !important;
-        border-radius: 4px !important;
-        margin-bottom: 16px !important;
-        animation: skeletonPulse 1.5s ease-in-out infinite !important;
-        animation-delay: 0.6s !important;
-        display: block !important;
-        box-sizing: border-box !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-      "></div>
-      <div style="
-        height: 20px !important;
-        width: 80% !important;
-        background: #e0d6c3 !important;
-        background-color: #e0d6c3 !important;
-        border-radius: 4px !important;
-        margin-bottom: 32px !important;
-        animation: skeletonPulse 1.5s ease-in-out infinite !important;
-        animation-delay: 0.8s !important;
-        display: block !important;
-        box-sizing: border-box !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-      "></div>
-      <div style="
-        height: 20px !important;
-        width: 100% !important;
-        background: #e0d6c3 !important;
-        background-color: #e0d6c3 !important;
-        border-radius: 4px !important;
-        margin-bottom: 16px !important;
-        animation: skeletonPulse 1.5s ease-in-out infinite !important;
-        animation-delay: 1s !important;
-        display: block !important;
-        box-sizing: border-box !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-      "></div>
-    </div>
-    <style>
-      @keyframes skeletonPulse {
-        0%, 100% { opacity: 1 !important; }
-        50% { opacity: 0.4 !important; }
-      }
-    </style>
-  `;
+  // Load skeleton HTML structure
+  try {
+    const response = await fetch(chrome.runtime.getURL('src/html/skeleton.html'));
+    const skeletonHTML = await response.text();
+    overlay.innerHTML = skeletonHTML;
+  } catch (error) {
+    console.error('Failed to load skeleton HTML:', error);
+    throw new Error('Skeleton HTML file could not be loaded');
+  }
   
   // Ensure the overlay is appended as the last child with highest priority
   document.body.appendChild(overlay);
@@ -634,33 +530,33 @@ async function rephraseWithGemini(text) {
 }
 
 
-// Show a floating skeleton loader (does not hide DOM)
-function showFloatingSkeletonLoader() {
-  if (document.getElementById('read-smart-skeleton')) return;
-  const skeleton = document.createElement('div');
-  skeleton.id = 'read-smart-skeleton';
-  skeleton.style.position = 'fixed';
-  skeleton.style.top = '40px';
-  skeleton.style.left = '50%';
-  skeleton.style.transform = 'translateX(-50%)';
-  skeleton.style.zIndex = '2147483647';
-  skeleton.innerHTML = `
-    <div class="skeleton-loader" style="max-width: 800px; padding: 32px; background: #f8f3eb; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,0.08);">
-      <div class="skeleton-title" style="height: 2.2rem; width: 60%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
-      <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
-      <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
-      <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
-    </div>
-    <style>
-      @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.5; }
-        100% { opacity: 1; }
-      }
-    </style>
-  `;
-  document.body.appendChild(skeleton);
-}
+// // Show a floating skeleton loader (does not hide DOM)
+// function showFloatingSkeletonLoader() {
+//   if (document.getElementById('read-smart-skeleton')) return;
+//   const skeleton = document.createElement('div');
+//   skeleton.id = 'read-smart-skeleton';
+//   skeleton.style.position = 'fixed';
+//   skeleton.style.top = '40px';
+//   skeleton.style.left = '50%';
+//   skeleton.style.transform = 'translateX(-50%)';
+//   skeleton.style.zIndex = '2147483647';
+//   skeleton.innerHTML = `
+//     <div class="skeleton-loader" style="max-width: 800px; padding: 32px; background: #f8f3eb; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,0.08);">
+//       <div class="skeleton-title" style="height: 2.2rem; width: 60%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
+//       <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
+//       <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
+//       <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
+//     </div>
+//     <style>
+//       @keyframes pulse {
+//         0% { opacity: 1; }
+//         50% { opacity: 0.5; }
+//         100% { opacity: 1; }
+//       }
+//     </style>
+//   `;
+//   document.body.appendChild(skeleton);
+// }
 
 function removeFloatingSkeletonLoader() {
   const skeleton = document.getElementById('read-smart-skeleton');
