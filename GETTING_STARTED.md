@@ -89,7 +89,6 @@ You can switch back to **Reader Mode** for a clean, ad-free view without persona
 
 • **Delete at any time** – Clear the extension's storage via *Chrome → Settings → Privacy → Clear browsing data → Hosted app data*.
 
-For more detail see the [Privacy FAQ](#).
 
 ---
 
