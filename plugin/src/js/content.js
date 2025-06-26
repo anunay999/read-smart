@@ -187,6 +187,26 @@ async function enablePlainReaderMode() {
 
 async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
   try {
+    const pageUrl = window.location.href;
+
+    // Attempt to serve from in-memory L1 cache first
+    if (window.readSmartPageCache) {
+      const cached = window.readSmartPageCache.get(pageUrl);
+      if (cached && cached.markdown) {
+        console.log('✅ ReadSmart: L1 page cache hit. Skipping regeneration.');
+        const article = await extractMainContent();
+        state.originalArticle = article;
+        await renderReaderOverlay({
+          title: article.title,
+          content: cached.markdown
+        }, true);
+
+        state.setSmartRephraseMode(true);
+        state.rephrasedContent = cached.markdown;
+        return; // Short-circuit – we're done.
+      }
+    }
+
     const article = await extractMainContent();
     state.originalArticle = article;
     
@@ -207,6 +227,14 @@ async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
     
     state.setSmartRephraseMode(true);
     state.rephrasedContent = rephrasedContent;
+
+    // Store in cache for the remainder of this page session
+    if (window.readSmartPageCache) {
+      window.readSmartPageCache.set(pageUrl, {
+        markdown: rephrasedContent,
+        generatedAt: Date.now()
+      });
+    }
   } catch (error) {
     cleanupOverlays();
     console.error('Error in enableSmartRephraseMode:', error);
@@ -619,6 +647,10 @@ function hideDOMExceptOverlay() {
       child.style.display = 'none';
     }
   });
+
+  // Disable scrolling on the main page to avoid double scrollbars
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
 }
 
 function restoreOriginalContent() {
@@ -627,6 +659,10 @@ function restoreOriginalContent() {
       child.style.display = '';
     }
   });
+
+  // Re-enable page scrolling
+  document.documentElement.style.overflow = '';
+  document.body.style.overflow = '';
 }
 
 // =============================================================================

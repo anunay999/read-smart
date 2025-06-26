@@ -1,143 +1,62 @@
-# Read Smart - Memory-Enhanced Reading Chrome Extension
+# 🧠 Read Smart – Turn the Web into Your Personal Tutor
 
-A Chrome extension that personalizes web content based on your reading history using AI-powered memory analysis. Built with a clean separation between memory storage and content personalization.
+**Read Smart** is a Chrome extension that instantly rewrites any long-form article in light of *your* existing knowledge. It remembers what you have read, surfaces the right background when you need it, and lets you learn twice as fast without information overload.
 
-## 🧠 Core Concept
-
-Read Smart transforms how you consume web content by:
-1. **Learning from your reading** - Extracts key insights and stores them as memories
-2. **Personalizing new content** - Rephrases articles based on what you already know
-3. **Maintaining author voice** - Preserves the original writing style while adding personal context
-4. **Connecting knowledge** - Shows how new content relates to your existing understanding
-
-## 🏗️ Architecture & Approach
-
-### Design Philosophy
-
-The extension follows a **separation of concerns** approach with two distinct operations:
-
-1. **Memory Addition** (`addPageToMemory`): 
-   - Extracts 3-5 key insights from content
-   - Stores them as discrete memory snippets
-   - Focused solely on knowledge capture
-
-2. **Content Rephrasing** (`rephraseWithUserMemories`):
-   - Searches for relevant existing memories
-   - Rephrases content in author's original style
-   - Provides two sections: personalized content + knowledge connections
-
-### Technical Stack
-
-```
-┌─────────────────────────────────────────┐
-│           Chrome Extension              │
-├─────────────────────────────────────────┤
-│  Popup UI ← → Content Script ← → Page  │
-├─────────────────────────────────────────┤
-│      Memory-Enhanced Reading Library    │
-├─────────────────────────────────────────┤
-│  Mem0 API (Memory Storage)              │
-│  Gemini API (Content Analysis)          │
-└─────────────────────────────────────────┘
-```
-
-### Key Components
-
-1. **Memory-Enhanced Reading Library** (`plugin/lib/memory-enhanced-reading.js`)
-   - Core logic for memory operations and content processing
-   - API integrations with Mem0 and Gemini
-   - Error handling and fallback mechanisms
-
-2. **Content Script** (`plugin/content.js`)
-   - Page content extraction using Readability.js
-   - Reader mode overlay rendering
-   - Message passing between popup and library
-
-3. **Popup Interface** (`plugin/popup.js`)
-   - User controls for memory addition and smart rephrasing
-   - API key configuration
-   - Status feedback and error handling
-
-## 🚀 Features
-
-### Current Capabilities
-
-- **Smart Memory Creation**: Automatically extracts 3-5 key insights from any webpage
-- **Author-Aware Rephrasing**: Maintains original writing style while personalizing content
-- **Knowledge Connections**: Shows how new content relates to existing memories
-- **Reference Links**: Recap section lists source URLs for the memories used
-- **Reader Mode Integration**: Clean reading experience with memory-enhanced content
-- **Dual-Section Output**: Main personalized content + knowledge recap
-- **Graceful Fallbacks**: Works even when memory operations fail
-
-### User Interface
-
-- **Add to Memory**: Single-click to extract and store page insights
-- **Smart Rephrase Toggle**: Personalizes content based on reading history
-- **Reader Mode**: Distraction-free reading with optional personalization
-- **Configuration Modal**: Easy API key setup and management
-
-## 🔧 Installation & Setup
-
-### 1. Clone and Load Extension
-
-```bash
-git clone https://github.com/anunay999/read-smart
-cd read-smart
-```
-
-Load the `plugin` folder as an unpacked extension in Chrome.
-
-### 2. Configure API Keys
-
-1. **Get Mem0 API Key**: Sign up at [mem0.ai](https://mem0.ai)
-2. **Get Gemini API Key**: Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
-3. Click the settings icon in the extension popup
-4. Enter your API keys and save
-
-### 3. Start Using
-
-- **Add memories**: Click "Add to Memory" on any interesting page
-- **Smart reading**: Toggle "Smart Rephrase" for personalized content
-- **Reader mode**: Click the reader mode toggle for distraction-free reading
-
-## 🔧 Development
-
-### Project Structure
-
-```
-read-smart/
-├── plugin/                    # Chrome extension
-│   ├── lib/
-|   |   ├── Readability.js  
-│   │   ├── memory-enhanced-reading.js  # Core library
-│   │   └── README.md                   # Library documentation
-│   ├── content.js            # Content script
-│   ├── popup.js             # Popup interface
-│   ├── popup.html           # Popup UI
-│   ├── manifest.json        # Extension manifest
-│   └── styles.css           # UI styles
-└── notebook/                # Research & prototyping
-    ├── memory.ipynb         # Jupyter notebook with full experiments
-    ├── pyproject.toml       # Python dependencies
-    ├── uv.lock              # Dependency lock file
-    └── .python-version      # Python version specification
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes with proper testing
-4. Update documentation as needed
-5. Submit a pull request
-
-## 📄 License
-
-MIT License - feel free to use and modify for your projects.
+> "It feels like having a private editor who knows everything I've already studied." — Early beta user
 
 ---
 
-**Read Smart: Making every article personally relevant** 🧠✨
+## ✨ Why You'll Love It
+
+• **Personalised Summaries** – Articles are rephrased to skip what you already know and focus on what's new for *you*.
+
+• **Knowledge Connections** – Inline call-outs show *why* a section matters based on your past reading.
+
+• **Author's Voice Preserved** – We re-write, not butcher. The tone, humour, and flow stay intact.
+
+• **Zero-Distraction Reader Mode** – Beautiful, single-scroll page with warm typography and no ads.
+
+• **Privacy First** – All memories live on your own machine or in your own Mem0 account; nothing is ever sent to our servers.
+
+---
+
+## 🏁 Quick Start
+
+1. Clone / download the repo and load the `plugin` folder as an *unpacked extension* in Chrome.
+2. Follow the [Getting Started](./GETTING_STARTED.md) guide to add your Gemini & Mem0 API keys.
+3. Visit any article, open the extension, and flip **Smart Rephrase Mode**. That's it!
+
+---
+
+## 🔍 Under the Hood
+
+| Layer | Tech | Role |
+|-------|------|------|
+| **Content Script** | JS + Readability.js | Extracts main article & injects overlay |
+| **Memory Engine** | `memory-enhanced-reading.js` | Searches your personal memory vault & asks Gemini to rewrite |
+| **Browser Cache** | In-memory L1 cache | Instant back/forward page loads |
+| **Mem0** | Your own account | Long-term, encrypted memory storage |
+
+---
+
+## 🛡️ Your Data, Your Rules
+
+• **No Cloud Backend** – The extension ships without a server. All processing happens locally or directly with Gemini/Mem0 via keys *you* own.
+
+• **Selective Storage** – Only the minimal text needed to create memories is stored. Full articles are never uploaded.
+
+• **Easy Opt-Out** – Pause memory capture at any time; wipe the local cache with one click.
+
+Read the full [Privacy FAQ](./GETTING_STARTED.md#privacy--security).
+
+---
+
+## 🤝 Contributing
+
+Pull requests are welcome! Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) (coming soon) for setup and coding conventions.
+
+---
+
+**Read Smart – Make every article count.**
 
 
