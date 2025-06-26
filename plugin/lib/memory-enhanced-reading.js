@@ -16,44 +16,35 @@ class MemoryEnhancedReading {
         // Configuration
         this.maxMemories = config.maxMemories || 10;
         this.relevanceThreshold = config.relevanceThreshold || 0.3;
-        this.debug = config.debug || false;
     }
 
-    /**
-     * Log debug messages
-     */
-    log(message, data = null) {
-        if (this.debug) {
-            console.log(`[MemoryReading] ${message}`, data || '');
-        }
-    }
 
     /**
      * Make API calls with error handling
      */
     async makeApiCall(url, options) {
         try {
-            this.log(`Making API call to: ${url}`);
-            this.log('Request options:', {
+            console.log(`Making API call to: ${url}`);
+            console.log('Request options:', {
                 method: options.method,
                 headers: options.headers,
                 body: options.body ? JSON.parse(options.body) : null
             });
 
             const response = await fetch(url, options);
-            this.log(`Response status: ${response.status}`);
+            console.log(`Response status: ${response.status}`);
 
             if (!response.ok) {
                 const errorText = await response.text();
-                this.log('Error response body:', errorText);
+                console.log('Error response body:', errorText);
                 throw new Error(`API call failed: ${response.status} - ${errorText.substring(0, 200)}`);
             }
 
             const responseData = await response.json();
-            this.log('Response data:', responseData);
+            console.log('Response data:', responseData);
             return responseData;
         } catch (error) {
-            this.log('API call error:', error);
+            console.log('API call error:', error);
             throw error;
         }
     }
@@ -62,6 +53,7 @@ class MemoryEnhancedReading {
      * Generate content using Gemini API
      */
     async generateWithGemini(prompt) {
+        console.log('Generating with Gemini');
         const requestBody = {
             contents: [{
                 parts: [{
@@ -69,6 +61,8 @@ class MemoryEnhancedReading {
                 }]
             }]
         };
+
+        console.log('Request body:', requestBody);
 
         const options = {
             method: 'POST',
@@ -114,17 +108,11 @@ class MemoryEnhancedReading {
 
             `;
 
-
-
-
-
         try {
             const response = await this.generateWithGemini(prompt);
             const topics = JSON.parse(response.trim());
-            this.log('Extracted topics:', topics);
             return topics;
         } catch (error) {
-            this.log('Error extracting topics:', error);
             return [];
         }
     }
@@ -171,7 +159,7 @@ class MemoryEnhancedReading {
     /**
      * Add memory using Mem0 API
      */
-    async addMemory(content) {
+    async addMemory(content, metadata = {}) {
         const url = `${this.baseUrl}/memories/`;
 
         // Format the request body to match the working curl example
@@ -182,6 +170,10 @@ class MemoryEnhancedReading {
             user_id: this.userId
         };
 
+        if (Object.keys(metadata).length > 0) {
+            requestBody.metadata = metadata;
+        }
+
         const options = {
             method: 'POST',
             headers: {
@@ -191,7 +183,7 @@ class MemoryEnhancedReading {
             body: JSON.stringify(requestBody)
         };
 
-        this.log('Adding memory with body:', requestBody);
+        console.log('Adding memory with body:', requestBody);
         return await this.makeApiCall(url, options);
     }
 
@@ -207,7 +199,7 @@ class MemoryEnhancedReading {
             const topics = await this.extractContentTopics(content);
 
             if (topics.length === 0) {
-                this.log('No topics extracted, returning empty results');
+                console.log('No topics extracted, returning empty results');
                 return [];
             }
 
@@ -227,7 +219,7 @@ class MemoryEnhancedReading {
                         }
                     }
                 } catch (error) {
-                    this.log(`Error searching for topic '${topic}':`, error);
+                    console.log(`Error searching for topic '${topic}':`, error);
                     continue;
                 }
             }
@@ -237,11 +229,10 @@ class MemoryEnhancedReading {
             allRelevantMemories.sort((a, b) => b.score - a.score);
             const relevantMemories = allRelevantMemories.slice(0, this.maxMemories);
 
-            this.log(`Found ${relevantMemories.length} relevant memories from ${allRelevantMemories.length} total matches`);
+            console.log(`Found ${relevantMemories.length} relevant memories from ${allRelevantMemories.length} total matches`);
             return relevantMemories;
 
         } catch (error) {
-            this.log('Error searching relevant memories:', error);
             return [];
         }
     }
@@ -284,10 +275,10 @@ class MemoryEnhancedReading {
             const response = await this.generateWithGemini(prompt);
             console.log('Response gemini memory snippets:', response);
             const snippets = JSON.parse(response.trim());
-            this.log(`Generated ${snippets.length} memory snippets:`, snippets);
+            console.log(`Generated ${snippets.length} memory snippets:`, snippets);
             return snippets;
         } catch (error) {
-            this.log('Error generating memory snippets:', error);
+            console.log('Error generating memory snippets:', error);
             return [];
         }
     }
@@ -296,53 +287,59 @@ class MemoryEnhancedReading {
      * Rephrase content based on existing user memories, matching author's writing style
      */
     async rephraseContentWithMemory(content, existingMemories) {
+        console.log('Rephrasing content with memory');
         const memoryText = existingMemories
-            .map(mem => `• ${mem.memory}`)
+            .map(mem => {
+                const urlPart = mem.metadata && mem.metadata.url ? ` (source: ${mem.metadata.url})` : '';
+                return `• ${mem.memory}${urlPart}`;
+            })
             .join('\n');
 
         const prompt = `
-You are an expert content personalizer that adapts articles to match the reader's existing knowledge while preserving the author's unique writing style.
+        You are an elite content-personaliser.
 
-TASK: Rewrite the article below in two sections, maintaining the original author's tone, style, and personality.
+        GOAL  
+        Rewrite the article in the author’s voice, only covering NEW information for the reader, and tightly link back to their stored memories.
 
-READER'S EXISTING KNOWLEDGE:
-${memoryText}
+        HARD RULES  ❗
+        1. Output **exactly** two top-level headings, in this order (no pre-amble, no epilogue):  
+        ## SECTION 1 – Recap & References  
+        ## SECTION 2 – Fresh Content in Author’s Voice  
+        2. Stop writing immediately after SECTION 2.  
+        3. Max **900 words** total; max **3 sentences** per paragraph.  
+        4. Insert a sub-heading or bullet block at least every **120 words** within SECTION 2.  
+        5. In SECTION 1:  
+        • **Context Bridge** – 1-2 sentences.  
+        • **What You Already Know** – 3-7 bullets, ≤ 8 words each.  
+        • **References** – bullet list of \`[Title](URL)\` links.  
+        6. No other headings, no metadata (“8 min read”), no HTML; output must be valid Markdown.  
+        7. If any rule is broken, RESTART and fix before finalising.
 
-ORIGINAL CONTENT:
-${content}
+        STYLE HINTS  
+        • Match the author’s vocabulary and cadence (semi-formal tech-blog).  
+        • Bold key take-aways, italicise pivotal terms, use \`> block-quotes\` sparingly.  
+        • Replace filler like “Let’s be real” unless in the original.
 
-INSTRUCTIONS:
-1. **Analyze the author's writing style**: Note their tone (formal/casual), personality (humorous/serious), vocabulary level, sentence structure, and any unique expressions or patterns.
+        INPUTS  
+        READER_MEMORIES  
+        ${memoryText}
 
-2. **Create exactly TWO sections**:
+        ORIGINAL_ARTICLE  
+        ${content}
 
-**SECTION 1: PERSONALIZED MAIN CONTENT**
-- Rewrite the main content in the author's exact style and voice
-- Reference the reader's existing knowledge naturally (e.g., "Building on your understanding of...", "As you already know from...")
-- Emphasize NEW information that complements what they already know
-- Skip or briefly mention concepts they're already familiar with
-- Keep the author's personality and unique expressions intact
-
-**SECTION 2: KNOWLEDGE CONNECTION RECAP**
-- Create a brief "What You Already Know" or "Connecting the Dots" section
-- Summarize how this content relates to their existing knowledge
-- Written in the same author's style but more conversational
-- Help the reader see patterns and connections
-
-CRITICAL REQUIREMENTS:
-- Maintain the author's exact writing style, tone, and personality
-- Keep all the author's unique phrases, humor, or distinctive voice
-- The content should feel like the original author wrote it specifically for this reader
-- Both sections should feel cohesive and natural
-
-Return the rephrased content with clear section headers:`;
-
+        REMEMBER  
+        – Do NOT repeat memory passages verbatim.  
+        – The reader scans in a small popup; keep visuals punchy.  
+        – Comply with all HARD RULES.    
+        You will be eliminated if you do not follow these rules.
+        `;
+        
         try {
+    
             const rephrasedContent = await this.generateWithGemini(prompt);
-            this.log('Content successfully rephrased with author style matching');
             return rephrasedContent;
         } catch (error) {
-            this.log('Error rephrasing content with memory:', error);
+            console.log('Error rephrasing content:', error);
             return content; // Return original content if rephrasing fails
         }
     }
@@ -350,16 +347,12 @@ Return the rephrased content with clear section headers:`;
     /**
      * Add page content to memory (generate snippets and store them)
      */
-    async addPageToMemory(content) {
-        this.log('Starting memory addition process...');
-
+    async addPageToMemory(content, pageUrl = '') {
         try {
             // Generate memory snippets
-            this.log('Generating memory snippets...');
             const snippets = await this.generateMemorySnippets(content);
 
             if (snippets.length === 0) {
-                this.log('No memory snippets generated');
                 return {
                     success: false,
                     processed: false,
@@ -369,10 +362,10 @@ Return the rephrased content with clear section headers:`;
             }
 
             // Add snippets to memory
-            this.log('Adding snippets to memory...');
-            const addPromises = snippets.map(snippet => this.addMemory(snippet));
+            const addPromises = snippets.map(snippet => this.addMemory(snippet, { url: pageUrl }));
             await Promise.all(addPromises);
-            this.log(`Successfully added ${snippets.length} snippets to memory`);
+
+            console.log('Snippets added to memory:', snippets);
 
             return {
                 success: true,
@@ -382,7 +375,6 @@ Return the rephrased content with clear section headers:`;
             };
 
         } catch (error) {
-            this.log('Error adding page to memory:', error);
             return {
                 success: false,
                 processed: false,
@@ -396,15 +388,11 @@ Return the rephrased content with clear section headers:`;
      * Rephrase content based on user's existing memories
      */
     async rephraseWithUserMemories(content) {
-        this.log('Starting content rephrasing process...');
-
         try {
             // Search for relevant existing memories
-            this.log('Searching for relevant memories...');
             const relevantMemories = await this.searchRelevantMemories(content);
 
             if (relevantMemories.length === 0) {
-                this.log('No relevant memories found for rephrasing');
                 return {
                     success: false,
                     processed: false,
@@ -416,7 +404,6 @@ Return the rephrased content with clear section headers:`;
             }
 
             // Rephrase content based on memories
-            this.log(`Rephrasing content using ${relevantMemories.length} relevant memories...`);
             const rephrasedContent = await this.rephraseContentWithMemory(content, relevantMemories);
 
             return {
@@ -429,7 +416,6 @@ Return the rephrased content with clear section headers:`;
             };
 
         } catch (error) {
-            this.log('Error rephrasing content:', error);
             return {
                 success: false,
                 processed: false,
@@ -454,7 +440,6 @@ Return the rephrased content with clear section headers:`;
                 newestMemory: memories[0]
             };
         } catch (error) {
-            this.log('Error getting memory stats:', error);
             return {
                 totalMemories: 0,
                 recentMemories: [],
@@ -483,10 +468,10 @@ Return the rephrased content with clear section headers:`;
 
         try {
             await this.makeApiCall(url, options);
-            this.log('All memories cleared successfully');
+            console.log('All memories cleared successfully');
             return { success: true };
         } catch (error) {
-            this.log('Error clearing memories:', error);
+            console.log('Error clearing memories:', error);
             return { success: false, error: error.message };
         }
     }
