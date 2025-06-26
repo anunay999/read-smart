@@ -255,7 +255,7 @@ async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
     
     // Show skeleton loading overlay (this hides DOM and shows skeleton)
     console.log('Showing skeleton overlay');
-    showSkeletonOverlay();
+    await showSkeletonOverlay();
     
     // Ensure skeleton is visible for at least 1 second for user to see
     const minDisplayTime = new Promise(resolve => setTimeout(resolve, 1000));
@@ -425,30 +425,174 @@ function injectSkeletonCSS() {
   document.head.appendChild(link);
 }
 
-function showSkeletonOverlay() {
+async function showSkeletonOverlay() {
   console.log('Creating skeleton overlay');
-  injectSkeletonCSS();
   
-  hideDOMExceptOverlay();
+  // Force complete cleanup first
   removeOverlay();
+  
+  // Remove any existing overlay by ID (multiple passes to be sure)
+  let existingOverlay = document.getElementById('read-smart-overlay');
+  while (existingOverlay) {
+    existingOverlay.remove();
+    existingOverlay = document.getElementById('read-smart-overlay');
+  }
+  
+  // Reset overlay variable
+  overlay = null;
+  
+  // Hide DOM content
+  hideDOMExceptOverlay();
+  
+  // Small delay to ensure DOM cleanup is complete
+  await new Promise(resolve => setTimeout(resolve, 100));
   
   overlay = document.createElement('div');
   overlay.id = 'read-smart-overlay';
-  overlay.className = 'skeleton-overlay';
   
-  overlay.innerHTML = `
-    <div class="skeleton-container">
-      <div class="skeleton-title"></div>
-      <div class="skeleton-line"></div>
-      <div class="skeleton-line"></div>
-      <div class="skeleton-line"></div>
-      <div class="skeleton-line"></div>
-      <div class="skeleton-line"></div>
-    </div>
+  // Use completely inline styles to avoid any CSS conflicts
+  overlay.style.cssText = `
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    min-width: 100vw !important;
+    min-height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    background: linear-gradient(135deg, #e8dcc6 0%, #ddd0b8 100%) !important;
+    z-index: 2147483647 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+    transform: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
   `;
   
+  overlay.innerHTML = `
+    <div style="
+      max-width: 1000px !important;
+      width: calc(100% - 80px) !important;
+      padding: 60px !important;
+      background: linear-gradient(135deg, #f8f3eb 0%, #f4ecd8 100%) !important;
+      border-radius: 16px !important;
+      box-shadow: 0 20px 40px rgba(139, 69, 19, 0.12), 0 8px 16px rgba(139, 69, 19, 0.08), 0 4px 8px rgba(139, 69, 19, 0.06) !important;
+      border: 1px solid rgba(212, 165, 116, 0.4) !important;
+      box-sizing: border-box !important;
+      display: block !important;
+      position: relative !important;
+    ">
+      <div style="
+        height: 48px !important;
+        width: 60% !important;
+        background: #e0d6c3 !important;
+        background-color: #e0d6c3 !important;
+        border-radius: 8px !important;
+        margin-bottom: 32px !important;
+        animation: skeletonPulse 1.5s ease-in-out infinite !important;
+        display: block !important;
+        box-sizing: border-box !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      "></div>
+      <div style="
+        height: 20px !important;
+        width: 100% !important;
+        background: #e0d6c3 !important;
+        background-color: #e0d6c3 !important;
+        border-radius: 4px !important;
+        margin-bottom: 16px !important;
+        animation: skeletonPulse 1.5s ease-in-out infinite !important;
+        animation-delay: 0.2s !important;
+        display: block !important;
+        box-sizing: border-box !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      "></div>
+      <div style="
+        height: 20px !important;
+        width: 100% !important;
+        background: #e0d6c3 !important;
+        background-color: #e0d6c3 !important;
+        border-radius: 4px !important;
+        margin-bottom: 16px !important;
+        animation: skeletonPulse 1.5s ease-in-out infinite !important;
+        animation-delay: 0.4s !important;
+        display: block !important;
+        box-sizing: border-box !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      "></div>
+      <div style="
+        height: 20px !important;
+        width: 100% !important;
+        background: #e0d6c3 !important;
+        background-color: #e0d6c3 !important;
+        border-radius: 4px !important;
+        margin-bottom: 16px !important;
+        animation: skeletonPulse 1.5s ease-in-out infinite !important;
+        animation-delay: 0.6s !important;
+        display: block !important;
+        box-sizing: border-box !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      "></div>
+      <div style="
+        height: 20px !important;
+        width: 80% !important;
+        background: #e0d6c3 !important;
+        background-color: #e0d6c3 !important;
+        border-radius: 4px !important;
+        margin-bottom: 32px !important;
+        animation: skeletonPulse 1.5s ease-in-out infinite !important;
+        animation-delay: 0.8s !important;
+        display: block !important;
+        box-sizing: border-box !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      "></div>
+      <div style="
+        height: 20px !important;
+        width: 100% !important;
+        background: #e0d6c3 !important;
+        background-color: #e0d6c3 !important;
+        border-radius: 4px !important;
+        margin-bottom: 16px !important;
+        animation: skeletonPulse 1.5s ease-in-out infinite !important;
+        animation-delay: 1s !important;
+        display: block !important;
+        box-sizing: border-box !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      "></div>
+    </div>
+    <style>
+      @keyframes skeletonPulse {
+        0%, 100% { opacity: 1 !important; }
+        50% { opacity: 0.4 !important; }
+      }
+    </style>
+  `;
+  
+  // Ensure the overlay is appended as the last child with highest priority
   document.body.appendChild(overlay);
+  
+  // Force a reflow to ensure styles are applied
+  overlay.offsetHeight;
+  
   console.log('Skeleton overlay created and added to body');
+  console.log('Overlay dimensions:', overlay.getBoundingClientRect());
 }
 
 function hideDOMExceptOverlay() {

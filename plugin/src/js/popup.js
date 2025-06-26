@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Process page content with memory library in content script
-      statusText.textContent = 'Generating with Memory...';
+      statusText.textContent = 'Adding page to memory...';
       statusText.className = 'status active';
       
       // First, inject content script if needed
