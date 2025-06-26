@@ -4,244 +4,181 @@ if (typeof window.readSmartInitialized !== 'undefined') {
 } else {
   window.readSmartInitialized = true;
 
-// --- State ---
-let readerModeActive = false;
-let smartRephraseActive = false;
-let overlay = null;
-let geminiApiKey = null;
-let originalArticle = null;
-let rephrasedContent = null;
+// =============================================================================
+// CONSTANTS
+// =============================================================================
 
-// --- Initialization ---
-chrome.storage.sync.get(['geminiApiKey'], function(result) {
-  geminiApiKey = result.geminiApiKey;
-});
+const CONSTANTS = {
+  OVERLAY_ID: 'read-smart-overlay',
+  READER_STYLES_ID: 'read-smart-reader-styles',
+  SKELETON_STYLES_ID: 'read-smart-skeleton-css',
+  Z_INDEX: '2147483647',
+  MIN_CONTENT_LENGTH: 50,
+  MAX_CONTENT_LENGTH: 8000,
+  SKELETON_MIN_DISPLAY_TIME: 1000,
+  TRANSITION_DELAY: 100,
+  USER_ID: 'chrome_extension_user'
+};
 
-// Notify that content script is ready
-chrome.runtime.sendMessage({action: "contentScriptReady"});
-
-// --- Message Handling ---
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "enableReaderMode") {
-    (async () => {
-      try {
-        await enablePlainReaderMode();
-        sendResponse({success: true});
-      } catch (error) {
-        console.error('❌ Error enabling reader mode:', error.message);
-        sendResponse({success: false, error: error.message});
-      }
-    })();
-    return true;
-    
-  } else if (request.action === "disableReaderMode") {
-    disableReaderMode();
-    sendResponse({success: true});
-  } else if (request.action === "toggleReaderMode") {
-    if (readerModeActive) {
-      disableReaderMode();
-      sendResponse({success: true, active: false});
-    } else {
-      (async () => {
-        try {
-          await enablePlainReaderMode();
-          sendResponse({success: true, active: true});
-        } catch (error) {
-          console.error('❌ Error enabling reader mode:', error.message);
-          sendResponse({success: false, error: error.message});
-        }
-      })();
-    }
-    return true;
-    
-  } else if (request.action === "enableSmartRephrase") {
-    (async () => {
-      try {
-        await enableSmartRephraseMode(request.geminiApiKey, request.mem0ApiKey);
-        sendResponse({success: true});
-      } catch (error) {
-        console.error('❌ Error enabling smart rephrase:', error.message);
-        sendResponse({success: false, error: error.message});
-      }
-    })();
-    return true;
-    
-  } else if (request.action === "disableSmartRephrase") {
-    disableSmartRephrase();
-    sendResponse({success: true});
-    
-  } else if (request.action === "getState") {
-    sendResponse({readerModeActive, smartRephraseActive});
-  } else if (request.action === "updateApiKeys") {
-    geminiApiKey = request.geminiApiKey;
-    // Store mem0ApiKey if needed for future use
-    sendResponse({success: true});
-  } else if (request.action === "extractPageContent") {
-    extractPageContentForMemory().then(result => {
-      sendResponse(result);
-    }).catch(error => {
-      console.error('❌ Content extraction failed:', error);
-      console.error('❌ Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
-      sendResponse({success: false, error: error.message});
-    });
-    return true; // Keep message channel open for async response
-
-  } else if (request.action === "addPageToMemory") {
-    addPageToMemory(request.geminiApiKey, request.mem0ApiKey).then(result => {
-      sendResponse(result);
-    }).catch(error => {
-      console.error('❌ Memory addition failed:', error);
-      sendResponse({success: false, processed: false, error: error.message});
-    });
-    return true; // Keep message channel open for async response
-  }
-  return true;
-});
-async function extractPageContentForMemory() {
-  try {
-    // Try to extract with Readability first
-    const documentClone = document.cloneNode(true);
-    fixLazyLoadedImages(documentClone);
-    const reader = new Readability(documentClone, {
-      charThreshold: 20,
-      classesToPreserve: ['important', 'highlight']
-    });
-    const article = reader.parse();
-    
-    if (article && article.textContent && article.textContent.trim().length > 100) {
-      // Successfully extracted with Readability
-      const result = {
-        success: true,
-        content: article.textContent.trim(),
-        title: article.title || document.title || 'Untitled Page'
-      };
-      return result;
-    } else {
-      // Fallback to extracting visible text from page
-      const title = document.title || 'Untitled Page';
-      
-      const content = extractVisibleText();
-      
-      if (content.length < 50) {
-        console.error('❌ Insufficient content found:', content.length, 'characters');
-        throw new Error('Insufficient content found on page');
-      }
-      
-      const result = {
-        success: true,
-        content: content,
-        title: title
-      };
-      return result;
-    }
-  } catch (error) {
-    console.error('❌ Error extracting page content:', error);
-    console.error('❌ Error stack:', error.stack);
-    throw new Error('Failed to extract page content: ' + error.message);
-  }
-}
-
-function extractVisibleText() {
-  // Extract visible text from common content containers
-  const selectors = [
+const SELECTORS = {
+  CONTENT_CONTAINERS: [
     'main', 'article', '[role="main"]', 
     '.content', '.post-content', '.entry-content',
     '.article-content', '.story-body', '.post-body',
     'body'
-  ];
-  
-  let content = '';
-  
-  for (const selector of selectors) {
-    const element = document.querySelector(selector);
-    if (element) {
-      
-      // Get text content but filter out script/style tags
-      const walker = document.createTreeWalker(
-        element,
-        NodeFilter.SHOW_TEXT,
-        {
-          acceptNode: function(node) {
-            const parent = node.parentElement;
-            if (!parent) return NodeFilter.FILTER_REJECT;
-            
-            const tagName = parent.tagName.toLowerCase();
-            const style = window.getComputedStyle(parent);
-            
-            // Skip hidden elements and script/style tags
-            if (tagName === 'script' || tagName === 'style' || tagName === 'noscript') {
-              return NodeFilter.FILTER_REJECT;
-            }
-            
-            if (style.display === 'none' || style.visibility === 'hidden') {
-              return NodeFilter.FILTER_REJECT;
-            }
-            
-            return NodeFilter.FILTER_ACCEPT;
-          }
-        }
-      );
-      
-      let textNode;
-      const textContent = [];
-      while (textNode = walker.nextNode()) {
-        const text = textNode.textContent.trim();
-        if (text.length > 0) {
-          textContent.push(text);
-        }
-      }
-      
-      content = textContent.join(' ').trim();
-      
-      // If we got substantial content, use it
-      if (content.length > 200) {
-        break;
-      }
-    }
+  ]
+};
+
+// =============================================================================
+// STATE MANAGEMENT
+// =============================================================================
+
+class ReadSmartState {
+  constructor() {
+    this.readerModeActive = false;
+    this.smartRephraseActive = false;
+    this.overlay = null;
+    this.geminiApiKey = null;
+    this.originalArticle = null;
+    this.rephrasedContent = null;
   }
-  
-  // Clean up the content
-  content = content.replace(/\s+/g, ' ').trim();
-  
-  // Limit content length to avoid API limits
-  if (content.length > 8000) {
-    content = content.substring(0, 8000) + '...';
+
+  setReaderMode(active) {
+    this.readerModeActive = active;
+    this.smartRephraseActive = !active;
   }
-  
-  return content;
+
+  setSmartRephraseMode(active) {
+    this.smartRephraseActive = active;
+    this.readerModeActive = !active;
+  }
+
+  reset() {
+    this.readerModeActive = false;
+    this.smartRephraseActive = false;
+    this.overlay = null;
+    this.originalArticle = null;
+    this.rephrasedContent = null;
+  }
 }
 
-function disableReaderMode() {
-  if (overlay) {
-    overlay.remove();
-    overlay = null;
-  }
-  // Restore original content visibility
-  Array.from(document.body.children).forEach(child => {
-    if (child.id !== 'read-smart-overlay') {
-      child.style.display = '';
-    }
+const state = new ReadSmartState();
+
+// =============================================================================
+// INITIALIZATION
+// =============================================================================
+
+function initializeContentScript() {
+  // Load stored API key
+  chrome.storage.sync.get(['geminiApiKey'], (result) => {
+    state.geminiApiKey = result.geminiApiKey;
   });
-  readerModeActive = false;
+
+  // Notify that content script is ready
+  chrome.runtime.sendMessage({ action: "contentScriptReady" });
 }
 
-// --- New Clean Functions ---
+// =============================================================================
+// MESSAGE HANDLING
+// =============================================================================
+
+const messageHandlers = {
+  enableReaderMode: async () => {
+    await enablePlainReaderMode();
+    return { success: true };
+  },
+
+  disableReaderMode: () => {
+    disableReaderMode();
+    return { success: true };
+  },
+
+  toggleReaderMode: async () => {
+    if (state.readerModeActive) {
+      disableReaderMode();
+      return { success: true, active: false };
+    } else {
+      await enablePlainReaderMode();
+      return { success: true, active: true };
+    }
+  },
+
+  enableSmartRephrase: async (request) => {
+    await enableSmartRephraseMode(request.geminiApiKey, request.mem0ApiKey);
+    return { success: true };
+  },
+
+  disableSmartRephrase: () => {
+    disableSmartRephrase();
+    return { success: true };
+  },
+
+  getState: () => ({
+    readerModeActive: state.readerModeActive,
+    smartRephraseActive: state.smartRephraseActive
+  }),
+
+  updateApiKeys: (request) => {
+    state.geminiApiKey = request.geminiApiKey;
+    return { success: true };
+  },
+
+  extractPageContent: async () => {
+    return await extractPageContentForMemory();
+  },
+
+  addPageToMemory: async (request) => {
+    return await addPageToMemory(request.geminiApiKey, request.mem0ApiKey);
+  }
+};
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  const handler = messageHandlers[request.action];
+  
+  if (!handler) {
+    return false;
+  }
+
+  // Handle async operations
+  if (handler.constructor.name === 'AsyncFunction') {
+    (async () => {
+      try {
+        const result = await handler(request);
+        sendResponse(result);
+      } catch (error) {
+        console.error(`❌ Error handling ${request.action}:`, error.message);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true; // Keep message channel open
+  } else {
+    // Handle synchronous operations
+    try {
+      const result = handler(request);
+      sendResponse(result);
+    } catch (error) {
+      console.error(`❌ Error handling ${request.action}:`, error.message);
+      sendResponse({ success: false, error: error.message });
+    }
+    return false;
+  }
+});
+
+// =============================================================================
+// CORE FUNCTIONALITY
+// =============================================================================
+
 async function enablePlainReaderMode() {
   try {
     const article = await extractMainContent();
-    originalArticle = article;
+    state.originalArticle = article;
     
     await renderReaderOverlay({
       title: article.title,
       content: article.content
     }, false);
     
-    readerModeActive = true;
-    smartRephraseActive = false;
+    state.setReaderMode(true);
   } catch (error) {
     console.error('❌ Error in enablePlainReaderMode:', error.message);
     throw error;
@@ -251,93 +188,53 @@ async function enablePlainReaderMode() {
 async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
   try {
     const article = await extractMainContent();
-    originalArticle = article;
+    state.originalArticle = article;
     
-    // Show skeleton loading overlay (this hides DOM and shows skeleton)
-    console.log('Showing skeleton overlay');
+    // Show skeleton loading
     await showSkeletonOverlay();
     
-    // Ensure skeleton is visible for at least 1 second for user to see
-    const minDisplayTime = new Promise(resolve => setTimeout(resolve, 1000));
+    // Ensure minimum display time for skeleton
+    const minDisplayTime = new Promise(resolve => 
+      setTimeout(resolve, CONSTANTS.SKELETON_MIN_DISPLAY_TIME)
+    );
     
-    // Use memory-enhanced rephrasing with the same content extraction as reader mode
-    let rephrasePromise;
-    try {
-      console.log('Rephrasing with memories using article');
-      rephrasePromise = rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKey);
-      const result = await rephrasePromise;
-      if (result.success) {
-        rephrasedContent = result.rephrasedContent;
-        // Wait for minimum display time, then show content
-        await minDisplayTime;
-        console.log('Removing skeleton and showing rephrased content');
-        removeOverlay();
-        await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure clean transition
-        await renderReaderOverlay({
-          title: article.title,
-          content: rephrasedContent
-        }, true);
-      } else {
-        console.log('Fallback to regular Gemini rephrasing');
-        // Fallback to regular Gemini rephrasing
-        rephrasedContent = await rephraseWithGemini(article.textContent);
-        // Wait for minimum display time, then show content
-        await minDisplayTime;
-        console.log('Removing skeleton and showing gemini content');
-        removeOverlay();
-        await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure clean transition
-        await renderReaderOverlay({
-          title: article.title,
-          content: rephrasedContent
-        }, true);
-      }
-    } catch (error) {
-      console.error('Error in memory-enhanced rephrasing, falling back:', error);
-      rephrasedContent = await rephraseWithGemini(article.textContent);
-      // Wait for minimum display time, then show content
-      await minDisplayTime;
-      console.log('Removing skeleton and showing fallback content');
-      removeOverlay();
-      await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure clean transition
-      await renderReaderOverlay({
-        title: article.title,
-        content: rephrasedContent
-      }, true);
-    }
+    // Try memory-enhanced rephrasing first, then fallback to regular Gemini
+    const rephrasedContent = await tryRephraseWithMemories(article, geminiApiKey, mem0ApiKey);
     
-    readerModeActive = false;
-    smartRephraseActive = true;
+    // Wait for minimum display time and show content
+    await minDisplayTime;
+    await transitionFromSkeletonToContent(article, rephrasedContent);
+    
+    state.setSmartRephraseMode(true);
+    state.rephrasedContent = rephrasedContent;
   } catch (error) {
-    // Make sure to remove all overlays on error
-    removeOverlay();
-    removeFloatingSkeletonLoader();
+    cleanupOverlays();
     console.error('Error in enableSmartRephraseMode:', error);
     throw error;
   }
 }
 
-function disableSmartRephrase() {
-  if (overlay) {
-    overlay.remove();
-    overlay = null;
-  }
-  // Restore original content visibility
-  Array.from(document.body.children).forEach(child => {
-    if (child.id !== 'read-smart-overlay') {
-      child.style.display = '';
-    }
-  });
-  smartRephraseActive = false;
+function disableReaderMode() {
+  cleanupOverlays();
+  restoreOriginalContent();
+  state.reset();
 }
 
-// --- Content Extraction ---
+function disableSmartRephrase() {
+  cleanupOverlays();
+  restoreOriginalContent();
+  state.reset();
+}
+
+// =============================================================================
+// CONTENT EXTRACTION
+// =============================================================================
+
 async function extractMainContent() {
-  // Check if Readability is available
   if (typeof Readability === 'undefined') {
     throw new Error('Readability library not loaded');
   }
   
-  // Extracts the main article content using Readability
   const documentClone = document.cloneNode(true);
   fixLazyLoadedImages(documentClone);
   
@@ -361,11 +258,110 @@ async function extractMainContent() {
   };
 }
 
+async function extractPageContentForMemory() {
+  try {
+    // Try Readability first
+    const documentClone = document.cloneNode(true);
+    fixLazyLoadedImages(documentClone);
+    const reader = new Readability(documentClone, {
+      charThreshold: 20,
+      classesToPreserve: ['important', 'highlight']
+    });
+    const article = reader.parse();
+    
+    if (article && article.textContent && article.textContent.trim().length > 100) {
+      return {
+        success: true,
+        content: article.textContent.trim(),
+        title: article.title || document.title || 'Untitled Page'
+      };
+    }
+    
+    // Fallback to visible text extraction
+    const title = document.title || 'Untitled Page';
+    const content = extractVisibleText();
+    
+    if (content.length < CONSTANTS.MIN_CONTENT_LENGTH) {
+      throw new Error('Insufficient content found on page');
+    }
+    
+    return {
+      success: true,
+      content: content,
+      title: title
+    };
+  } catch (error) {
+    console.error('❌ Error extracting page content:', error);
+    throw new Error('Failed to extract page content: ' + error.message);
+  }
+}
+
+function extractVisibleText() {
+  let content = '';
+  
+  for (const selector of SELECTORS.CONTENT_CONTAINERS) {
+    const element = document.querySelector(selector);
+    if (!element) continue;
+    
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: (node) => {
+          const parent = node.parentElement;
+          if (!parent) return NodeFilter.FILTER_REJECT;
+          
+          const tagName = parent.tagName.toLowerCase();
+          const style = window.getComputedStyle(parent);
+          
+          // Skip hidden elements and script/style tags
+          if (['script', 'style', 'noscript'].includes(tagName)) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          
+          if (style.display === 'none' || style.visibility === 'hidden') {
+            return NodeFilter.FILTER_REJECT;
+          }
+          
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      }
+    );
+    
+    const textContent = [];
+    let textNode;
+    while (textNode = walker.nextNode()) {
+      const text = textNode.textContent.trim();
+      if (text.length > 0) {
+        textContent.push(text);
+      }
+    }
+    
+    content = textContent.join(' ').trim();
+    
+    // If we got substantial content, use it
+    if (content.length > 200) {
+      break;
+    }
+  }
+  
+  // Clean and limit content
+  content = content.replace(/\s+/g, ' ').trim();
+  
+  if (content.length > CONSTANTS.MAX_CONTENT_LENGTH) {
+    content = content.substring(0, CONSTANTS.MAX_CONTENT_LENGTH) + '...';
+  }
+  
+  return content;
+}
+
 function fixLazyLoadedImages(doc) {
   const imgs = doc.querySelectorAll('img');
   imgs.forEach(img => {
     if (!img.getAttribute('src')) {
-      const dataSrc = img.getAttribute('data-src') || img.getAttribute('data-original') || img.getAttribute('data-lazy-src');
+      const dataSrc = img.getAttribute('data-src') || 
+                     img.getAttribute('data-original') || 
+                     img.getAttribute('data-lazy-src');
       if (dataSrc) {
         img.setAttribute('src', dataSrc);
       }
@@ -373,224 +369,207 @@ function fixLazyLoadedImages(doc) {
   });
 }
 
-// --- Overlay Rendering ---
+// =============================================================================
+// OVERLAY RENDERING
+// =============================================================================
+
 async function renderReaderOverlay(article, isMarkdown = false) {
-  // Ensure clean state - remove any existing overlays first
-  removeOverlay();
-  removeFloatingSkeletonLoader();
-  
-  // Hide DOM content
+  cleanupOverlays();
   hideDOMExceptOverlay();
   
-  overlay = document.createElement('div');
-  overlay.id = 'read-smart-overlay';
-  overlay.className = 'fixed inset-0 w-screen h-screen overflow-auto bg-[#f4ecd8] z-[2147483647]';
+  state.overlay = document.createElement('div');
+  state.overlay.id = CONSTANTS.OVERLAY_ID;
+  state.overlay.className = `fixed inset-0 w-screen h-screen overflow-auto bg-[#f4ecd8] z-[${CONSTANTS.Z_INDEX}]`;
   
-  // Inject reader styles if not already present
-  if (!document.getElementById('read-smart-reader-styles')) {
+  await injectReaderStyles();
+  await loadReaderTemplate(state.overlay, article, isMarkdown);
+  
+  document.body.appendChild(state.overlay);
+}
+
+async function showSkeletonOverlay() {
+  console.log('Creating skeleton overlay');
+  
+  cleanupOverlays();
+  disableReaderStyles();
+  hideDOMExceptOverlay();
+  injectSkeletonCSS();
+  
+  // Small delay to ensure DOM cleanup
+  await new Promise(resolve => setTimeout(resolve, CONSTANTS.TRANSITION_DELAY));
+  
+  state.overlay = document.createElement('div');
+  state.overlay.id = CONSTANTS.OVERLAY_ID;
+  state.overlay.className = 'skeleton-overlay';
+  
+  await loadSkeletonTemplate(state.overlay);
+  
+  document.body.appendChild(state.overlay);
+  
+  // Force reflow
+  state.overlay.offsetHeight;
+  
+  console.log('Skeleton overlay created');
+}
+
+// =============================================================================
+// TEMPLATE LOADING
+// =============================================================================
+
+async function loadReaderTemplate(overlay, article, isMarkdown) {
+  try {
+    const response = await fetch(chrome.runtime.getURL('src/html/reader.html'));
+    const template = await response.text();
+    
+    const processedContent = isMarkdown && window.marked ? 
+      window.marked.parse(article.content) : article.content;
+    
+    const html = template
+      .replace('{{TITLE}}', article.title)
+      .replace('{{CONTENT}}', processedContent);
+    
+    overlay.innerHTML = html;
+  } catch (error) {
+    console.error('Failed to load reader template:', error);
+    throw new Error('Reader template could not be loaded');
+  }
+}
+
+async function loadSkeletonTemplate(overlay) {
+  try {
+    const response = await fetch(chrome.runtime.getURL('src/html/skeleton.html'));
+    const template = await response.text();
+    overlay.innerHTML = template;
+  } catch (error) {
+    console.error('Failed to load skeleton template:', error);
+    throw new Error('Skeleton template could not be loaded');
+  }
+}
+
+// =============================================================================
+// CSS MANAGEMENT
+// =============================================================================
+
+async function injectReaderStyles() {
+  const existingStyles = document.getElementById(CONSTANTS.READER_STYLES_ID);
+  
+  if (!existingStyles) {
     const link = document.createElement('link');
-    link.id = 'read-smart-reader-styles';
+    link.id = CONSTANTS.READER_STYLES_ID;
     link.rel = 'stylesheet';
     link.type = 'text/css';
     link.href = chrome.runtime.getURL('src/css/reader-styles.css');
     document.head.appendChild(link);
   } else {
-    // Re-enable reader styles if they were disabled
-    const readerStyles = document.getElementById('read-smart-reader-styles');
-    if (readerStyles) {
-      readerStyles.disabled = false;
-    }
+    // Re-enable if disabled
+    existingStyles.disabled = false;
   }
-  
-  // Load reader HTML structure
-  try {
-    const response = await fetch(chrome.runtime.getURL('src/html/reader.html'));
-    const readerHTML = await response.text();
-    
-    // Process content based on markdown setting
-    const processedContent = isMarkdown && window.marked ? window.marked.parse(article.content) : article.content;
-    
-    // Replace placeholders with actual content
-    const finalHTML = readerHTML
-      .replace('{{TITLE}}', article.title)
-      .replace('{{CONTENT}}', processedContent);
-    
-    overlay.innerHTML = finalHTML;
-  } catch (error) {
-    console.error('Failed to load reader HTML:', error);
-    throw new Error('Reader HTML file could not be loaded');
-  }
-  
-  document.body.appendChild(overlay);
 }
 
-// Inject skeleton CSS if not already present
 function injectSkeletonCSS() {
-  if (document.getElementById('read-smart-skeleton-css')) return;
+  if (document.getElementById(CONSTANTS.SKELETON_STYLES_ID)) return;
   
   const link = document.createElement('link');
-  link.id = 'read-smart-skeleton-css';
+  link.id = CONSTANTS.SKELETON_STYLES_ID;
   link.rel = 'stylesheet';
   link.type = 'text/css';
   link.href = chrome.runtime.getURL('src/css/skeleton.css');
   document.head.appendChild(link);
 }
 
-async function showSkeletonOverlay() {
-  console.log('Creating skeleton overlay');
-  
-  // Force complete cleanup first
-  removeOverlay();
-  
-  // Remove any existing overlay by ID (multiple passes to be sure)
-  let existingOverlay = document.getElementById('read-smart-overlay');
-  while (existingOverlay) {
-    existingOverlay.remove();
-    existingOverlay = document.getElementById('read-smart-overlay');
-  }
-  
-  // Reset overlay variable
-  overlay = null;
-  
-  // Temporarily disable reader styles to prevent conflicts
-  const readerStyles = document.getElementById('read-smart-reader-styles');
+function disableReaderStyles() {
+  const readerStyles = document.getElementById(CONSTANTS.READER_STYLES_ID);
   if (readerStyles) {
     readerStyles.disabled = true;
   }
-  
-  // Hide DOM content
-  hideDOMExceptOverlay();
-  
-  // Inject skeleton CSS
-  injectSkeletonCSS();
-  
-  // Small delay to ensure DOM cleanup is complete
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
-  overlay = document.createElement('div');
-  overlay.id = 'read-smart-overlay';
-  overlay.className = 'skeleton-overlay';
-  
-  // Load skeleton HTML structure
+}
+
+// =============================================================================
+// CONTENT REPHRASING
+// =============================================================================
+
+async function tryRephraseWithMemories(article, geminiApiKey, mem0ApiKey) {
   try {
-    const response = await fetch(chrome.runtime.getURL('src/html/skeleton.html'));
-    const skeletonHTML = await response.text();
-    overlay.innerHTML = skeletonHTML;
+    const result = await rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKey);
+    if (result.success && result.rephrasedContent) {
+      console.log('Successfully rephrased with memories');
+      return result.rephrasedContent;
+    }
   } catch (error) {
-    console.error('Failed to load skeleton HTML:', error);
-    throw new Error('Skeleton HTML file could not be loaded');
+    console.error('Memory rephrasing failed, falling back to Gemini:', error);
   }
   
-  // Ensure the overlay is appended as the last child with highest priority
-  document.body.appendChild(overlay);
-  
-  // Force a reflow to ensure styles are applied
-  overlay.offsetHeight;
-  
-  console.log('Skeleton overlay created and added to body');
-  console.log('Overlay dimensions:', overlay.getBoundingClientRect());
+  // Fallback to regular Gemini rephrasing
+  console.log('Using fallback Gemini rephrasing');
+  return await rephraseWithGemini(article.textContent);
 }
 
-function hideDOMExceptOverlay() {
-  Array.from(document.body.children).forEach(child => {
-    if (child.id !== 'read-smart-overlay') {
-      child.style.display = 'none';
-    }
-  });
-}
-
-function removeOverlay() {
-  if (overlay) overlay.remove();
-}
-
-// --- Rephrase Functions ---
 async function rephraseWithGemini(text) {
-  if (!geminiApiKey) throw new Error('Gemini API key not set. Please set it in the extension settings.');
+  if (!state.geminiApiKey) {
+    throw new Error('Gemini API key not set. Please set it in the extension settings.');
+  }
   
-  // Check if MemoryEnhancedReading is available
   if (typeof MemoryEnhancedReading === 'undefined') {
     throw new Error('MemoryEnhancedReading library not loaded');
   }
   
-  try {
-    // Initialize Memory Reader to use its Gemini function
-    const memoryReader = new MemoryEnhancedReading({
-      geminiApiKey: geminiApiKey,
-      userId: "chrome_extension_user"
-    });
-    
-    const prompt = `Please rephrase the following text in a clear, engaging, and easy-to-read style while maintaining the original meaning and key information. Render in Markdown format: --- \n\n${text}`;
-    
-    // Use the library's generateWithGemini method instead of duplicate code
-    const rephrasedText = await memoryReader.generateWithGemini(prompt);
-    return rephrasedText;
-  } catch (error) {
-    throw error;
+  const memoryReader = new MemoryEnhancedReading({
+    geminiApiKey: state.geminiApiKey,
+    userId: CONSTANTS.USER_ID
+  });
+  
+  const prompt = `Please rephrase the following text in a clear, engaging, and easy-to-read style while maintaining the original meaning and key information. Render in Markdown format: --- \n\n${text}`;
+  
+  return await memoryReader.generateWithGemini(prompt);
+}
+
+async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKey) {
+  if (typeof MemoryEnhancedReading === 'undefined') {
+    throw new Error('MemoryEnhancedReading library not loaded');
   }
+  
+  const memoryReader = new MemoryEnhancedReading({
+    mem0ApiKey: mem0ApiKey,
+    geminiApiKey: geminiApiKey,
+    userId: CONSTANTS.USER_ID,
+    debug: false,
+    maxMemories: 6,
+    relevanceThreshold: 0.6
+  });
+
+  const result = await memoryReader.rephraseWithUserMemories(article.textContent);
+  
+  if (result.success && result.rephrasedContent && result.rephrasedContent.trim().length > 0) {
+    return result;
+  }
+  
+  return {
+    success: false,
+    error: 'No content generated from memory rephrasing'
+  };
 }
 
-
-// // Show a floating skeleton loader (does not hide DOM)
-// function showFloatingSkeletonLoader() {
-//   if (document.getElementById('read-smart-skeleton')) return;
-//   const skeleton = document.createElement('div');
-//   skeleton.id = 'read-smart-skeleton';
-//   skeleton.style.position = 'fixed';
-//   skeleton.style.top = '40px';
-//   skeleton.style.left = '50%';
-//   skeleton.style.transform = 'translateX(-50%)';
-//   skeleton.style.zIndex = '2147483647';
-//   skeleton.innerHTML = `
-//     <div class="skeleton-loader" style="max-width: 800px; padding: 32px; background: #f8f3eb; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,0.08);">
-//       <div class="skeleton-title" style="height: 2.2rem; width: 60%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
-//       <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
-//       <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
-//       <div class="skeleton-paragraph" style="height: 1.2rem; width: 100%; background: #e0d6c3; border-radius: 6px; margin-bottom: 20px; animation: pulse 1.5s infinite;"></div>
-//     </div>
-//     <style>
-//       @keyframes pulse {
-//         0% { opacity: 1; }
-//         50% { opacity: 0.5; }
-//         100% { opacity: 1; }
-//       }
-//     </style>
-//   `;
-//   document.body.appendChild(skeleton);
-// }
-
-function removeFloatingSkeletonLoader() {
-  const skeleton = document.getElementById('read-smart-skeleton');
-  if (skeleton) skeleton.remove();
-}
-
-// Add page content to memory using MemoryEnhancedReading library
 async function addPageToMemory(geminiApiKey, mem0ApiKey) {
   try {
-    // Check if MemoryEnhancedReading is available
     if (typeof MemoryEnhancedReading === 'undefined') {
       throw new Error('MemoryEnhancedReading library not loaded');
     }
     
-    // Extract page content first
     const contentResult = await extractPageContentForMemory();
     
     if (!contentResult.success) {
       throw new Error('Failed to extract page content');
     }
     
-    // Initialize Memory Reader
     const memoryReader = new MemoryEnhancedReading({
       mem0ApiKey: mem0ApiKey,
       geminiApiKey: geminiApiKey,
-      userId: "chrome_extension_user",
+      userId: CONSTANTS.USER_ID,
       debug: false
     });
     
-    // Add page content to memory only
     const pageUrl = window.location.href;
-    const result = await memoryReader.addPageToMemory(contentResult.content, pageUrl);
-    
-    return result;
+    return await memoryReader.addPageToMemory(contentResult.content, pageUrl);
     
   } catch (error) {
     console.error('❌ Error in addPageToMemory:', error);
@@ -602,51 +581,58 @@ async function addPageToMemory(geminiApiKey, mem0ApiKey) {
   }
 }
 
-// Rephrase content with user memories using already extracted article
-async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKey) {
-  try {
-    // Check if MemoryEnhancedReading is available
-    if (typeof MemoryEnhancedReading === 'undefined') {
-      console.log('MemoryEnhancedReading library not loaded');
-      throw new Error('MemoryEnhancedReading library not loaded');
-    }
-    
-    // Initialize Memory Reader with lower relevance threshold
-    const memoryReader = new MemoryEnhancedReading({
-      mem0ApiKey: mem0ApiKey,
-      geminiApiKey: geminiApiKey,
-      userId: "chrome_extension_user",
-      debug: false,
-      maxMemories: 6,
-      relevanceThreshold: 0.6  // Lower threshold to be more inclusive
-    });
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
 
-    console.log('Article text content:', article);
-    
-    // Rephrase content with user memories
-    const result = await memoryReader.rephraseWithUserMemories(
-      article.textContent,
-    );
-    
-    // If we got a successful result with content, use it
-    if (result.success && result.rephrasedContent && result.rephrasedContent.trim().length > 0) {
-      console.log('Rephrased content successfully');
-      return result;
-    } else {
-      return {
-        success: false,
-        error: 'No content generated from memory rephrasing'
-      };
-    }
-    
-  } catch (error) {
-    console.error('❌ Error in rephraseWithMemoriesUsingArticle:', error);
-    return {
-      success: false,
-      processed: false,
-      error: error.message
-    };
+async function transitionFromSkeletonToContent(article, rephrasedContent) {
+  console.log('Transitioning from skeleton to content');
+  removeOverlay();
+  await new Promise(resolve => setTimeout(resolve, CONSTANTS.TRANSITION_DELAY));
+  await renderReaderOverlay({
+    title: article.title,
+    content: rephrasedContent
+  }, true);
+}
+
+function cleanupOverlays() {
+  removeOverlay();
+  
+  // Remove any stray overlays by ID
+  let existingOverlay = document.getElementById(CONSTANTS.OVERLAY_ID);
+  while (existingOverlay) {
+    existingOverlay.remove();
+    existingOverlay = document.getElementById(CONSTANTS.OVERLAY_ID);
   }
 }
+
+function removeOverlay() {
+  if (state.overlay) {
+    state.overlay.remove();
+    state.overlay = null;
+  }
+}
+
+function hideDOMExceptOverlay() {
+  Array.from(document.body.children).forEach(child => {
+    if (child.id !== CONSTANTS.OVERLAY_ID) {
+      child.style.display = 'none';
+    }
+  });
+}
+
+function restoreOriginalContent() {
+  Array.from(document.body.children).forEach(child => {
+    if (child.id !== CONSTANTS.OVERLAY_ID) {
+      child.style.display = '';
+    }
+  });
+}
+
+// =============================================================================
+// INITIALIZATION
+// =============================================================================
+
+initializeContentScript();
 
 } // End of readSmartInitialized check
