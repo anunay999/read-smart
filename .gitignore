@@ -176,3 +176,5 @@ cython_debug/
 
 # YoYo AI version control directory
 .yoyo/
+
+node_modules/
