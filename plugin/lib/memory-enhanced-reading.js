@@ -189,6 +189,9 @@ class MemoryEnhancedReading {
 
     /**
      * Search for memories relevant to the current page content
+     *
+     * TODO: support per-call overrides for `maxMemories` and
+     * `relevanceThreshold` once requirements are defined.
      */
     async searchRelevantMemories(content) {
         try {
