@@ -267,11 +267,17 @@ input:checked + .slider:before {
 .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); backdrop-filter: blur(4px); }
 .modal-content { background: #1a1a1a; margin: 5% auto; padding: 0; border-radius: 20px; width: 420px; max-width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.5); max-height: 90vh; overflow: hidden; border: 1px solid #333; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 24px 24px 16px 24px; border-bottom: 1px solid #333; }
-.modal-title { font-size: 20px; font-weight: 600; color: #ffffff; }
+.modal-title { padding-top: 2px; font-weight: 600; color: #ffffff; }
 .close { color: #888; font-size: 24px; cursor: pointer; border: none; background: none; padding: 8px; border-radius: 8px; transition: all 0.2s; }
 .close:hover { color: #fff; background: #333; }
-.modal-body { padding: 24px; }
-.api-key-group { margin-bottom: 24px; }
+.modal-body {
+  max-height: 62vh; /* leave space for header & footer */
+  overflow-y: auto; /* always scrollable */
+  padding: 24px 24px 160px 24px; /* more bottom to clear footer */
+  padding-right: 32px; /* space for potential scrollbar */
+}
+
+.api-key-group { margin-bottom: 16px; }
 .api-key-label { font-size: 14px; color: #ffffff; margin-bottom: 8px; display: block; font-weight: 500; }
 .api-key-input { width: 100%; padding: 12px 16px; background: #2a2a2a; border: 1px solid #444; border-radius: 12px; font-size: 14px; color: #ffffff; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; transition: all 0.2s; }
 .api-key-input:focus { outline: none; border-color: #7c3aed; background: #333; box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
@@ -287,4 +293,110 @@ input:checked + .slider:before {
 .api-status.configured { background: rgba(34,197,94,0.1); color: #22c55e; }
 .api-status.missing { background: rgba(239,68,68,0.1); color: #ef4444; }
 
-/* End Popup Styles */ 
+/* End Popup Styles */
+
+/* ===================== Advanced Configuration ===================== */
+.advanced-section {
+  margin-top: 16px;
+}
+
+.advanced-section summary {
+  cursor: pointer;
+  font-size: 14px;
+  color: #a1a1aa;
+  padding: 12px 0;
+  outline: none;
+  list-style: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: color .2s ease;
+}
+
+/* custom caret */
+.advanced-section summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #a1a1aa;
+  border-bottom: 2px solid #a1a1aa;
+  transform: rotate(45deg);
+  transition: transform .2s ease, border-color .2s ease;
+  margin-left: 8px;
+}
+
+.advanced-section[open] summary {
+  color: #ffffff;
+}
+
+.advanced-section[open] summary::after {
+  transform: rotate(-135deg);
+  border-color: #ffffff;
+}
+
+.advanced-body {
+  padding: 16px 0 0 0;
+  border-top: 1px solid #333;
+}
+
+.config-group {
+  margin-bottom: 16px;
+}
+
+.config-label {
+  font-size: 13px;
+  color: #ffffff;
+  margin-bottom: 6px;
+  display: block;
+  font-weight: 500;
+}
+
+.config-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #ffffff;
+  transition: all 0.2s;
+}
+
+.config-input:focus {
+  outline: none;
+  border-color: #7c3aed;
+  background: #333;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.select {
+  appearance: none;
+  background-image: url('data:image/svg+xml;utf8,<svg fill="%23a1a1aa" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px 16px;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+/* ===================== Modal scroll behaviour ===================== */
+.modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+.modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.modal-body::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+} 
