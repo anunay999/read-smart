@@ -20,6 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const geminiStatus = document.getElementById('geminiStatus');
   const mem0Status = document.getElementById('mem0Status');
   
+  // BEGIN: Advanced configuration elements
+  const systemPromptInput      = document.getElementById('systemPromptInput');
+  const relevanceThresholdInput = document.getElementById('relevanceThresholdInput');
+  const maxMemoriesInput        = document.getElementById('maxMemoriesInput');
+  const geminiModelSelect       = document.getElementById('geminiModelSelect');
+  // END: Advanced configuration elements
+  
   // Progress indicator elements
   const progressContainer = document.getElementById('progressContainer');
   const progressStepsWrapper = document.getElementById('progressSteps');
@@ -32,23 +39,31 @@ document.addEventListener('DOMContentLoaded', () => {
   // API key storage keys
   const STORAGE_KEYS = {
     GEMINI_API_KEY: 'geminiApiKey',
-    MEM0_API_KEY: 'mem0ApiKey'
+    MEM0_API_KEY: 'mem0ApiKey',
+    // Advanced configuration keys
+    SYSTEM_PROMPT: 'systemPrompt',
+    RELEVANCE_THRESHOLD: 'relevanceThreshold',
+    MAX_MEMORIES: 'maxMemories',
+    GEMINI_MODEL: 'geminiModel',
+    DEBUG_MODE: 'debugMode'
   };
 
   // Load saved states and API keys
   async function loadSavedData() {
     try {
-      const result = await chrome.storage.sync.get([
-        STORAGE_KEYS.GEMINI_API_KEY, 
-        STORAGE_KEYS.MEM0_API_KEY
-      ]);
-      
-      // Load API keys into input fields
+      const result = await chrome.storage.sync.get(Object.values(STORAGE_KEYS));
+
+      // Load API keys
       const geminiKey = result[STORAGE_KEYS.GEMINI_API_KEY] || '';
-      const mem0Key = result[STORAGE_KEYS.MEM0_API_KEY] || '';
-      
+      const mem0Key   = result[STORAGE_KEYS.MEM0_API_KEY] || '';
       geminiApiKeyInput.value = geminiKey;
-      mem0ApiKeyInput.value = mem0Key;
+      mem0ApiKeyInput.value   = mem0Key;
+
+      // Load advanced config (with sensible fallbacks)
+      systemPromptInput.value        = result[STORAGE_KEYS.SYSTEM_PROMPT] || '';
+      relevanceThresholdInput.value  = result[STORAGE_KEYS.RELEVANCE_THRESHOLD] ?? '';
+      maxMemoriesInput.value         = result[STORAGE_KEYS.MAX_MEMORIES] ?? '';
+      geminiModelSelect.value        = result[STORAGE_KEYS.GEMINI_MODEL] || 'gemini-2.5-flash';
       
       // Don't set toggle states from storage - they should reflect actual page state
       // Toggle states will be set by checkInitialState() based on actual content script state
@@ -133,8 +148,14 @@ document.addEventListener('DOMContentLoaded', () => {
   async function saveApiConfiguration() {
     const geminiKey = geminiApiKeyInput.value.trim();
     const mem0Key = mem0ApiKeyInput.value.trim();
+
+    // Advanced configuration values
+    const systemPrompt       = systemPromptInput.value.trim();
+    const relevanceThreshold = parseFloat(relevanceThresholdInput.value);
+    const maxMemories        = parseInt(maxMemoriesInput.value, 10);
+    const geminiModel        = geminiModelSelect.value;
     
-    // API keys are optional, but at least show a warning if none are provided
+    // API keys are optional, but warn if none provided
     if (!geminiKey && !mem0Key) {
       const proceed = confirm('No API keys provided. You can only use Reader Mode without API keys. Continue?');
       if (!proceed) {
@@ -143,44 +164,71 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      // Save both API keys to storage
-      await chrome.storage.sync.set({
+      // Prepare storage payload
+      const storagePayload = {
         [STORAGE_KEYS.GEMINI_API_KEY]: geminiKey,
-        [STORAGE_KEYS.MEM0_API_KEY]: mem0Key
-      });
-      
+        [STORAGE_KEYS.MEM0_API_KEY]: mem0Key,
+        [STORAGE_KEYS.SYSTEM_PROMPT]: systemPrompt,
+        [STORAGE_KEYS.RELEVANCE_THRESHOLD]: isNaN(relevanceThreshold) ? null : relevanceThreshold,
+        [STORAGE_KEYS.MAX_MEMORIES]: isNaN(maxMemories) ? null : maxMemories,
+        [STORAGE_KEYS.GEMINI_MODEL]: geminiModel,
+        [STORAGE_KEYS.DEBUG_MODE]: false
+      };
+
+      // Persist to chrome.storage.sync
+      await chrome.storage.sync.set(storagePayload);
+
       // Show success alert
-      alert('API keys saved successfully!');
-      
-      // Update all UI states
+      alert('Configuration saved successfully!');
+
+      // Update UI states
       updateAllUIStates();
+
+      // Prepare values for broadcast (sanitise NaN)
+      const safeRelevance = isNaN(relevanceThreshold) ? null : relevanceThreshold;
+      const safeMaxMemories = isNaN(maxMemories) ? null : maxMemories;
       
-      // Update content script with new API keys
+      // Broadcast configuration update to ALL tabs
+      const allTabs = await chrome.tabs.query({});
+      allTabs.forEach((tab) => {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'configUpdated',
+          config: {
+            systemPrompt,
+            relevanceThreshold: safeRelevance,
+            maxMemories: safeMaxMemories,
+            geminiModel,
+            debug: false,
+            geminiApiKey: geminiKey,
+            mem0ApiKey: mem0Key
+          }
+        }).catch(() => {/* ignore errors for tabs without content script */});
+      });
+
+      // Also update active tab with new API keys for backwards compatibility
       try {
         const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
         if (tab) {
           await chrome.tabs.sendMessage(tab.id, {
-            action: "updateApiKeys",
+            action: 'updateApiKeys',
             geminiApiKey: geminiKey,
             mem0ApiKey: mem0Key
           });
         }
-      } catch (error) {
-        // Could not update content script, likely not injected yet
-      }
-      
-      // Close modal and show success status
+      } catch (_) {/* ignore */}
+
+      // Close modal and show success banner
       hideConfigModal();
       statusText.textContent = 'Configuration saved successfully!';
       statusText.className = 'status active';
-      
+
       setTimeout(() => {
         statusText.textContent = readerModeToggle.checked ? 'Smart reading mode active' : 'Normal reading mode';
         statusText.className = readerModeToggle.checked ? 'status active' : 'status';
       }, 2000);
-      
+
     } catch (error) {
-      console.error('Error saving API configuration:', error);
+      console.error('Error saving configuration:', error);
       alert('Error saving configuration. Please try again.');
     }
   }
@@ -582,6 +630,19 @@ document.addEventListener('DOMContentLoaded', () => {
     requestAnimationFrame(() => {
       mainContainer.style.transform = 'translateX(0)';
       mainContainer.style.opacity = '1';
+    });
+  }
+
+  // Auto-scroll Advanced section into view when expanded
+  const advancedSection = document.getElementById('advancedSection');
+  if (advancedSection) {
+    advancedSection.addEventListener('toggle', () => {
+      if (advancedSection.open) {
+        // give layout a moment then scroll
+        setTimeout(() => {
+          advancedSection.scrollIntoView({behavior: 'smooth', block: 'start'});
+        }, 50);
+      }
     });
   }
 });

@@ -41,6 +41,13 @@ class ReadSmartState {
     this.geminiApiKey = null;
     this.originalArticle = null;
     this.rephrasedContent = null;
+    // Advanced configuration defaults
+    this.config = {
+      systemPrompt: '',
+      relevanceThreshold: 0.5,
+      maxMemories: 6,
+      geminiModel: 'gemini-2.5-flash',
+    };
   }
 
   setReaderMode(active) {
@@ -69,9 +76,25 @@ const state = new ReadSmartState();
 // =============================================================================
 
 function initializeContentScript() {
-  // Load stored API key
-  chrome.storage.sync.get(['geminiApiKey'], (result) => {
+  // Load stored API key and advanced config
+  chrome.storage.sync.get([
+    'geminiApiKey',
+    'systemPrompt',
+    'relevanceThreshold',
+    'maxMemories',
+    'geminiModel',
+  ], (result) => {
     state.geminiApiKey = result.geminiApiKey;
+    state.config.systemPrompt = result.systemPrompt || state.config.systemPrompt;
+    if (typeof result.relevanceThreshold === 'number') {
+      state.config.relevanceThreshold = result.relevanceThreshold;
+    }
+    if (typeof result.maxMemories === 'number') {
+      state.config.maxMemories = result.maxMemories;
+    }
+    if (typeof result.geminiModel === 'string') {
+      state.config.geminiModel = result.geminiModel;
+    }
   });
 
   // Notify that content script is ready
@@ -120,6 +143,20 @@ const messageHandlers = {
 
   updateApiKeys: (request) => {
     state.geminiApiKey = request.geminiApiKey;
+    return { success: true };
+  },
+
+  // NEW: handle dynamic config updates
+  configUpdated: (request) => {
+    if (request.config) {
+      state.config = {
+        ...state.config,
+        ...request.config
+      };
+      if (request.config.geminiApiKey) {
+        state.geminiApiKey = request.config.geminiApiKey;
+      }
+    }
     return { success: true };
   },
 
@@ -541,12 +578,17 @@ async function rephraseWithGemini(text) {
     throw new Error('MemoryEnhancedReading library not loaded');
   }
   
+  const promptBase = state.config.systemPrompt && state.config.systemPrompt.trim().length > 0
+    ? state.config.systemPrompt.trim()
+    : 'Please rephrase the following text in a clear, engaging, and easy-to-read style while maintaining the original meaning and key information. Render in Markdown format:';
+  const prompt = `${promptBase}\n\n---\n\n${text}`;
+  
   const memoryReader = new MemoryEnhancedReading({
     geminiApiKey: state.geminiApiKey,
-    userId: CONSTANTS.USER_ID
+    geminiModel: state.config.geminiModel,
+    userId: CONSTANTS.USER_ID,
+    debug: state.config.debug
   });
-  
-  const prompt = `Please rephrase the following text in a clear, engaging, and easy-to-read style while maintaining the original meaning and key information. Render in Markdown format: --- \n\n${text}`;
   
   return await memoryReader.generateWithGemini(prompt);
 }
@@ -559,10 +601,11 @@ async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKe
   const memoryReader = new MemoryEnhancedReading({
     mem0ApiKey: mem0ApiKey,
     geminiApiKey: geminiApiKey,
+    geminiModel: state.config.geminiModel,
     userId: CONSTANTS.USER_ID,
-    debug: false,
-    maxMemories: 6,
-    relevanceThreshold: 0.6
+    debug: state.config.debug,
+    maxMemories: state.config.maxMemories,
+    relevanceThreshold: state.config.relevanceThreshold
   });
 
   const result = await memoryReader.rephraseWithUserMemories(article.textContent);
@@ -592,8 +635,11 @@ async function addPageToMemory(geminiApiKey, mem0ApiKey) {
     const memoryReader = new MemoryEnhancedReading({
       mem0ApiKey: mem0ApiKey,
       geminiApiKey: geminiApiKey,
+      geminiModel: state.config.geminiModel,
       userId: CONSTANTS.USER_ID,
-      debug: false
+      debug: state.config.debug,
+      maxMemories: state.config.maxMemories,
+      relevanceThreshold: state.config.relevanceThreshold
     });
     
     const pageUrl = window.location.href;
