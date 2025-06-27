@@ -1,20 +1,28 @@
 // Wait for DOM to be ready
 document.addEventListener('DOMContentLoaded', () => {
+  // Toggle elements
   const readerModeToggle = document.getElementById('readerModeToggle');
   const statusText = document.getElementById('statusText');
-  // memoryCount element removed from UI
   const rephraseToggle = document.getElementById('rephraseToggle');
-  const configButton = document.getElementById('configButton');
   const memoryButton = document.getElementById('memoryButton');
   const dashboardButton = document.getElementById('dashboardButton');
+  
+  // Configuration modal elements
+  const configButton = document.getElementById('configButton');
   const configModal = document.getElementById('configModal');
   const closeModal = document.getElementById('closeModal');
   const cancelConfig = document.getElementById('cancelConfig');
   const saveConfig = document.getElementById('saveConfig');
+
+  // API key input elements
   const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
   const mem0ApiKeyInput = document.getElementById('mem0ApiKeyInput');
   const geminiStatus = document.getElementById('geminiStatus');
   const mem0Status = document.getElementById('mem0Status');
+  
+  // Progress indicator elements
+  const progressContainer = document.getElementById('progressContainer');
+  const progressStepsWrapper = document.getElementById('progressSteps');
   
   if (!readerModeToggle || !statusText || !rephraseToggle || !configButton || !configModal || !memoryButton) {
     console.error('Required elements not found!');
@@ -189,6 +197,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Add current page to memory using Memory-Enhanced Reading Library
   async function addCurrentPageToMemory() {
+    const steps = ['Preparing page', 'Uploading to Mem0', 'Done'];
+    startProgress(steps);
     try {
       // Check if API keys are configured
       const storage = await chrome.storage.sync.get([STORAGE_KEYS.GEMINI_API_KEY, STORAGE_KEYS.MEM0_API_KEY]);
@@ -213,17 +223,21 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Process page content with memory library in content script
-      statusText.textContent = 'Adding page to memory...';
+      statusText.textContent = 'Uploading content...';
       statusText.className = 'status active';
-      
+
       // First, inject content script if needed
       try {
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           files: ['lib/Readability.js', 'lib/marked.min.js', 'lib/memory-enhanced-reading.js', 'content.js']
         });
+
+        // Mark preparation done once scripts are injected
+        completeProgressStep(0, steps.length);
       } catch (scriptError) {
         // Content script might already be injected
+        completeProgressStep(0, steps.length); // still mark step done
       }
       
       // Send message to content script to add page to memory
@@ -237,6 +251,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show success
         memoryButton.textContent = 'Add to Memory';
         memoryButton.disabled = false;
+        // Upload finished
+        completeProgressStep(1, steps.length);
         
         statusText.textContent = `Memory added! (${result.snippetsCount} snippets)`;
         statusText.className = 'status active';
@@ -245,7 +261,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const currentMode = readerModeToggle.checked ? 'Smart reading mode active' : 'Normal reading mode';
           statusText.textContent = currentMode;
           statusText.className = readerModeToggle.checked ? 'status active' : 'status';
-        }, 3000);
+          // Hide after completing final step
+          setTimeout(() => hideProgress(), 1200);
+        }, 300);
       } else {
         throw new Error(result.error || 'Failed to add page to memory');
       }
@@ -269,6 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }, 3000);
       
       alert('Failed to add memory. Please check your API keys and try again.');
+      hideProgress();
     }
   }
 
@@ -371,6 +390,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Enable smart rephrase
   async function enableSmartRephrase() {
+    const steps = ['Preparing page', 'Generating with memory', 'Done'];
+    startProgress(steps);
     try {
       const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
       if (!tab) return;
@@ -384,15 +405,17 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Please configure both Gemini and Mem0 API keys for Smart Rephrase');
         rephraseToggle.checked = false;
         showConfigModal();
+        hideProgress();
         return;
       }
 
       // Inject required scripts
       await injectScripts(tab.id);
+      completeProgressStep(0, steps.length);
       
       statusText.textContent = 'Generating with memory...';
       statusText.className = 'status active';
-      
+
       // Enable smart rephrase with memory
       const response = await chrome.tabs.sendMessage(tab.id, {
         action: "enableSmartRephrase",
@@ -403,6 +426,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (response && response.success) {
         statusText.textContent = 'Smart rephrase active';
         statusText.className = 'status active';
+        completeProgressStep(1, steps.length);
+
+        setTimeout(() => {
+          completeProgressStep(2, steps.length);
+        }, 300);
+
+        setTimeout(() => hideProgress(), 1500);
       } else {
         throw new Error(response?.error || 'Failed to enable smart rephrase');
       }
@@ -411,6 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
       rephraseToggle.checked = false;
       statusText.textContent = 'Error enabling smart rephrase';
       statusText.className = 'status';
+      hideProgress();
     }
   }
 
@@ -438,9 +469,9 @@ document.addEventListener('DOMContentLoaded', () => {
         target: { tabId: tabId },
         files: ['lib/Readability.js', 'lib/marked.min.js', 'lib/memory-enhanced-reading.js', 'content.js']
       });
-          } catch (error) {
-        // Scripts might already be injected
-      }
+    } catch (error) {
+      // Scripts might already be injected
+    }
   }
 
   // Check initial state
@@ -483,8 +514,75 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.tabs.create({ url: 'https://app.mem0.ai/dashboard' });
   }
 
+  // Helper: initialize progress steps
+  function startProgress(steps) {
+    if (!progressStepsWrapper) return;
+
+    progressStepsWrapper.innerHTML = '';
+
+    steps.forEach((step, idx) => {
+      // Step element
+      const stepEl = document.createElement('div');
+      stepEl.className = 'progress-step';
+      stepEl.id = `progress-step-${idx}`;
+
+      // Circle
+      const circle = document.createElement('div');
+      circle.className = 'circle';
+      circle.id = `progress-circle-${idx}`;
+      circle.textContent = '';
+      stepEl.appendChild(circle);
+
+      // Label
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = step;
+      stepEl.appendChild(label);
+
+      progressStepsWrapper.appendChild(stepEl);
+    });
+
+    // Mark first as current
+    const firstStep = document.getElementById('progress-step-0');
+    if (firstStep) firstStep.classList.add('current');
+
+    if (progressContainer) progressContainer.style.display = 'block';
+    if (statusText) statusText.style.display = 'none';
+  }
+
+  function completeProgressStep(idx, totalSteps) {
+    const stepEl = document.getElementById(`progress-step-${idx}`);
+    const circleEl = document.getElementById(`progress-circle-${idx}`);
+    if (stepEl && circleEl) {
+      stepEl.classList.remove('current');
+      stepEl.classList.add('completed');
+      circleEl.textContent = '✓';
+    }
+
+    const nextIdx = idx + 1;
+    if (nextIdx < totalSteps) {
+      const nextStep = document.getElementById(`progress-step-${nextIdx}`);
+      if (nextStep) nextStep.classList.add('current');
+    }
+  }
+
+  function hideProgress() {
+    if (progressContainer) progressContainer.style.display = 'none';
+    if (progressStepsWrapper) progressStepsWrapper.innerHTML = '';
+    if (statusText) statusText.style.display = '';
+  }
+
   // Initialize the popup
   loadSavedData();
   checkInitialState();
+
+  // Trigger slide-in animation
+  const mainContainer = document.querySelector('.container');
+  if (mainContainer) {
+    requestAnimationFrame(() => {
+      mainContainer.style.transform = 'translateX(0)';
+      mainContainer.style.opacity = '1';
+    });
+  }
 });
   

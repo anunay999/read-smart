@@ -53,6 +53,7 @@
           "src/css/reader-styles.css",
           "src/css/styles.css",
           "src/css/skeleton.css",
+          "src/css/popup.css",
           "src/html/skeleton.html",
           "src/html/reader.html"
         ],
