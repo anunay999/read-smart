@@ -1,5 +1,6 @@
 
 # <img src="plugin/assets/icons/icon128.png" alt="Read Smart" height="58" style="vertical-align: middle;"> read smart – Turn the Web into Your Personal Editor
+[![CI](https://github.com/anunay999/read-smart/actions/workflows/ci.yml/badge.svg)](https://github.com/anunay999/read-smart/actions/workflows/ci.yml)
 
 **Read Smart** is a Chrome extension that instantly rewrites any long-form article in light of *your* existing knowledge. It remembers what you have read, surfaces the right background when you need it, and lets you learn twice as fast without information overload.
 
