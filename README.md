@@ -1,4 +1,3 @@
-
 # <img src="plugin/assets/icons/icon128.png" alt="Read Smart" height="58" style="vertical-align: middle;"> read smart – Turn the Web into Your Personal Editor
 [![CI](https://github.com/anunay999/read-smart/actions/workflows/ci.yml/badge.svg)](https://github.com/anunay999/read-smart/actions/workflows/ci.yml)
 
@@ -20,6 +19,11 @@
 
 • **Privacy First** – All memories live on your own machine or in your own Mem0 account; nothing is ever sent to our servers.
 
+---
+
+## Demo
+
+[![Read Smart Demo](https://img.youtube.com/vi/r4728h4h0X4/hqdefault.jpg)](https://youtu.be/r4728h4h0X4 "Watch the full demo on YouTube")
 ---
 
 ## 🏁 Quick Start
