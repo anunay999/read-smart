@@ -8,7 +8,7 @@ describe('content.js', () => {
 
   test('sets window.readSmartInitialized flag on execution', () => {
     jest.isolateModules(() => {
-      require(path.resolve(__dirname, '../plugin/src/js/content.js'));
+      require(path.resolve(__dirname, '../plugin/src/js/core/content.js'));
     });
     expect(window.readSmartInitialized).toBe(true);
   });

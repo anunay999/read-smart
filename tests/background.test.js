@@ -14,7 +14,7 @@ describe('background.js', () => {
 
   test('registers chrome listeners on load', () => {
     jest.isolateModules(() => {
-      require(path.resolve(__dirname, '../plugin/src/js/background.js'));
+      require(path.resolve(__dirname, '../plugin/src/js/core/background.js'));
     });
 
     expect(global.chrome.runtime.onInstalled.addListener).toHaveBeenCalledTimes(1);

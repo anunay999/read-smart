@@ -27,18 +27,22 @@
       }
     },
     "background": {
-      "service_worker": "src/js/background.js",
+      "service_worker": "src/js/core/background.js",
       "type": "module"
     },
     "content_scripts": [
       {
         "matches": ["<all_urls>"],
         "js": [
-          "lib/Readability.js", 
-          "lib/marked.min.js", 
-          "lib/memory-enhanced-reading.js", 
+          "lib/Readability.js",
+          "lib/marked.min.js",
+          "src/js/managers/config-manager.js",
+          "src/js/managers/storage-manager.js",
+          "src/js/managers/event-manager.js",
+          "src/js/features/memory-deduplication.js",
+          "src/js/managers/memory-manager.js",
           "src/js/cache.js",
-          "src/js/content.js"
+          "src/js/core/content.js"
         ],
         "css": [
           "lib/tailwind.min.css"
