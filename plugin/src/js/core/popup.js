@@ -293,26 +293,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // First, inject content script if needed
       try {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: [
-            'lib/Readability.js',
-            'lib/marked.min.js',
-            'src/js/managers/event-manager.js',
-            'src/js/managers/storage-manager.js',
-            'src/js/managers/config-manager.js',
-            'src/js/features/memory-deduplication.js',
-            'lib/memory-enhanced-reading.js',
-            'src/js/managers/memory-manager.js',
-            'src/js/cache.js',
-            'src/js/core/content.js'
-          ]
-        });
-
-        // Mark preparation done once scripts are injected
+        await injectScripts(tab.id);
+        // Mark preparation done once scripts are injected/verified
         completeProgressStep(0, steps.length);
       } catch (scriptError) {
-        // Content script might already be injected
+        // Content script might already be injected or injection failed
         completeProgressStep(0, steps.length); // still mark step done
       }
       
@@ -352,23 +337,77 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } catch (error) {
       console.error('❌ Error in addCurrentPageToMemory:', error);
-      console.error('❌ Error stack:', error.stack);
       
       // Reset button state
       memoryButton.textContent = 'Add to Memory';
       memoryButton.disabled = false;
       
-      // Show error message
-      statusText.textContent = 'Failed to add memory';
-      statusText.className = 'status';
+      // Provide specific error messages based on error type
+      let userMessage = 'Failed to add memory';
+      let shouldShowAlert = true;
       
+      if (error.message.includes('not available') || error.message.includes('not properly loaded')) {
+        userMessage = 'Extension loading error - refresh page';
+        statusText.textContent = userMessage;
+        statusText.className = 'status';
+        
+        // Show helpful alert for this specific issue
+        setTimeout(() => {
+          alert('The extension components are not properly loaded. Please:\n\n1. Refresh the current page\n2. Wait for the page to fully load\n3. Try adding to memory again\n\nIf the problem persists, try reloading the extension.');
+        }, 100);
+        shouldShowAlert = false;
+        
+      } else if (error.message.includes('API key') || error.message.includes('Invalid')) {
+        userMessage = 'API key issue - check settings';
+        statusText.textContent = userMessage;
+        statusText.className = 'status';
+        
+        setTimeout(() => {
+          alert('There is an issue with your API keys. Please:\n\n1. Open Settings\n2. Verify both Gemini and Mem0 API keys are correct\n3. Save the configuration\n4. Try again');
+          showConfigModal();
+        }, 100);
+        shouldShowAlert = false;
+        
+      } else if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+        userMessage = 'Network error - check connection';
+        statusText.textContent = userMessage;
+        statusText.className = 'status';
+        
+        setTimeout(() => {
+          alert('Network error occurred. Please:\n\n1. Check your internet connection\n2. Verify API keys are valid\n3. Disable ad blockers temporarily\n4. Try again');
+        }, 100);
+        shouldShowAlert = false;
+        
+      } else if (error.message.includes('content blocker') || error.message.includes('ERR_BLOCKED')) {
+        userMessage = 'Content blocker interference';
+        statusText.textContent = userMessage;
+        statusText.className = 'status';
+        
+        setTimeout(() => {
+          alert('Content blocker is interfering with the extension. Please:\n\n1. Disable ad blockers on this page\n2. Add these domains to your allowlist:\n   - generativelanguage.googleapis.com\n   - api.mem0.ai\n3. Try again');
+        }, 100);
+        shouldShowAlert = false;
+        
+      } else {
+        // Generic error
+        statusText.textContent = userMessage;
+        statusText.className = 'status';
+      }
+      
+      // Reset status after a delay
       setTimeout(() => {
         const currentMode = readerModeToggle.checked ? 'Smart reading mode active' : 'Normal reading mode';
         statusText.textContent = currentMode;
         statusText.className = readerModeToggle.checked ? 'status active' : 'status';
-      }, 3000);
+      }, 5000);
       
-      alert('Failed to add memory. Please check your API keys and try again.');
+      // Show generic alert only if we haven't shown a specific one
+      if (shouldShowAlert) {
+        setTimeout(() => {
+          alert('Failed to add memory. Error: ' + error.message + '\n\nPlease check your API keys and try again.');
+        }, 100);
+      }
+      
       hideProgress();
     }
   }

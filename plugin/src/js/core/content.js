@@ -76,18 +76,32 @@ const state = new ReadSmartState();
 // =============================================================================
 
 async function initializeContentScript() {
-  await configManager.initialize();
-  await deduplicator.initialize();
-  await memoryManager.initialize();
+  try {
+    await configManager.initialize();
+    await deduplicator.initialize();
+    await memoryManager.initialize();
 
-  state.geminiApiKey = configManager.get('geminiApiKey');
-  state.config.systemPrompt = configManager.get('systemPrompt');
-  state.config.relevanceThreshold = configManager.get('relevanceThreshold');
-  state.config.maxMemories = configManager.get('maxMemories');
-  state.config.geminiModel = configManager.get('geminiModel');
-  state.config.debug = configManager.get('debugMode');
+    state.geminiApiKey = configManager.get('geminiApiKey');
+    state.config.systemPrompt = configManager.get('systemPrompt');
+    state.config.relevanceThreshold = configManager.get('relevanceThreshold');
+    state.config.maxMemories = configManager.get('maxMemories');
+    state.config.geminiModel = configManager.get('geminiModel');
+    state.config.debug = configManager.get('debugMode');
 
-  chrome.runtime.sendMessage({ action: 'contentScriptReady' });
+    chrome.runtime.sendMessage({ action: 'contentScriptReady' });
+    
+  } catch (error) {
+    console.error('❌ Content script initialization failed:', error);
+    
+    // Try to provide a fallback state
+    try {
+      if (configManager && typeof configManager.get === 'function') {
+        state.geminiApiKey = configManager.get('geminiApiKey');
+      }
+    } catch (fallbackError) {
+      console.error('❌ Fallback initialization also failed:', fallbackError);
+    }
+  }
 }
 
 // =============================================================================
@@ -583,16 +597,49 @@ async function rephraseWithGemini(text) {
 
 async function addPageToMemory(force = false) {
   try {
+    // Check if memoryManager is properly initialized
+    if (typeof memoryManager === 'undefined' || memoryManager === null) {
+      throw new Error('Memory manager not available. Please refresh the page and try again.');
+    }
+
+    // Check if memoryManager has the required method
+    if (!memoryManager.addPageToMemory || typeof memoryManager.addPageToMemory !== 'function') {
+      throw new Error('Memory manager missing addPageToMemory method. Please refresh the page.');
+    }
+
     const contentResult = await extractPageContentForMemory();
     if (!contentResult.success) {
-      throw new Error('Failed to extract page content');
+      throw new Error('Failed to extract page content: ' + contentResult.error);
     }
+
     const pageUrl = window.location.href;
     const opts = force ? { force: true } : {};
-    return await memoryManager.addPageToMemory(contentResult.content, pageUrl, opts);
+    
+    const result = await memoryManager.addPageToMemory(contentResult.content, pageUrl, opts);
+    
+    return result;
   } catch (error) {
     console.error('❌ Error in addPageToMemory:', error);
-    return { success: false, processed: false, error: error.message };
+    
+    // Provide more specific error messages
+    let userFriendlyMessage = error.message;
+    if (error.message.includes('not available')) {
+      userFriendlyMessage = 'Extension not properly loaded. Please refresh the page and try again.';
+    } else if (error.message.includes('Failed to fetch')) {
+      userFriendlyMessage = 'Network error. Please check your internet connection and API keys.';
+    } else if (error.message.includes('API key')) {
+      userFriendlyMessage = 'Invalid API key. Please check your settings.';
+    }
+    
+    return { 
+      success: false, 
+      processed: false, 
+      error: userFriendlyMessage,
+      debugInfo: {
+        originalError: error.message,
+        timestamp: new Date().toISOString()
+      }
+    };
   }
 }
 
@@ -655,6 +702,31 @@ function restoreOriginalContent() {
 // =============================================================================
 // INITIALIZATION
 // =============================================================================
+
+// Simple debug function for troubleshooting if needed
+window.readSmartDebug = function() {
+  console.log('🔍 Read Smart Extension Status:');
+  console.log('- Content script loaded:', typeof window.readSmartInitialized !== 'undefined');
+  console.log('- Memory manager available:', typeof memoryManager !== 'undefined' && !!memoryManager);
+  console.log('- Config manager available:', typeof configManager !== 'undefined' && !!configManager);
+  
+  if (typeof memoryManager !== 'undefined' && memoryManager && typeof memoryManager.getDebugInfo === 'function') {
+    const debugInfo = memoryManager.getDebugInfo();
+    console.log('- Memory manager initialized:', debugInfo.initialized);
+    console.log('- Has reader instance:', debugInfo.hasReader);
+    if (debugInfo.initError) {
+      console.log('- Initialization error:', debugInfo.initError);
+    }
+  }
+  
+  if (typeof configManager !== 'undefined' && configManager) {
+    const config = configManager.get();
+    console.log('- API keys configured:', {
+      gemini: !!config.geminiApiKey,
+      mem0: !!config.mem0ApiKey
+    });
+  }
+};
 
 (async () => { await initializeContentScript(); })();
 
