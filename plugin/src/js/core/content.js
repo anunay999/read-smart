@@ -543,6 +543,12 @@ function disableReaderStyles() {
 
 async function tryRephraseWithMemories(article) {
   try {
+    // Check if memoryManager is properly initialized
+    if (!memoryManager || !memoryManager.reader) {
+      console.error('Memory manager not properly initialized, falling back to Gemini');
+      return await rephraseWithGemini(article.textContent);
+    }
+
     const result = await memoryManager.rephraseWithUserMemories(article.textContent);
     if (result.success && result.rephrasedContent) {
       console.log('Successfully rephrased with memories');
@@ -559,6 +565,11 @@ async function tryRephraseWithMemories(article) {
 async function rephraseWithGemini(text) {
   if (!state.geminiApiKey) {
     throw new Error('Gemini API key not set. Please set it in the extension settings.');
+  }
+
+  // Check if memoryManager and reader are available
+  if (!memoryManager || !memoryManager.reader || typeof memoryManager.reader.generateWithGemini !== 'function') {
+    throw new Error('Memory manager not properly initialized. Cannot access Gemini functionality.');
   }
 
   const promptBase = state.config.systemPrompt && state.config.systemPrompt.trim().length > 0

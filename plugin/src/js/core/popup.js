@@ -533,14 +533,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         setTimeout(() => hideProgress(), 1500);
       } else {
-        throw new Error(response?.error || 'Failed to enable smart rephrase');
+        const errorMessage = response?.error || 'Failed to enable smart rephrase';
+        console.error('Smart rephrase error:', errorMessage);
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('Error enabling smart rephrase:', error);
       rephraseToggle.checked = false;
-      statusText.textContent = 'Error enabling smart rephrase';
+      
+      // Provide more specific error messages
+      let errorMessage = 'Error enabling smart rephrase';
+      if (error.message.includes('API key')) {
+        errorMessage = 'API key issue - check settings';
+      } else if (error.message.includes('not properly initialized')) {
+        errorMessage = 'Initialization error - try refreshing page';
+      } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        errorMessage = 'Network error - check connection';
+      }
+      
+      statusText.textContent = errorMessage;
       statusText.className = 'status';
       hideProgress();
+      
+      // Show alert for serious errors
+      if (error.message.includes('not properly initialized')) {
+        alert('Smart rephrase failed to initialize. Please refresh the page and try again.');
+      }
     }
   }
 
@@ -564,6 +582,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // Helper function to inject required scripts
   async function injectScripts(tabId) {
     try {
+      // Check if content script is already initialized
+      const response = await chrome.tabs.sendMessage(tabId, {action: "getState"});
+      if (response) {
+        // Content script is already loaded and responding
+        return;
+      }
+    } catch (error) {
+      // Content script not loaded, proceed with injection
+    }
+
+    try {
       await chrome.scripting.executeScript({
         target: { tabId },
         files: [
@@ -580,7 +609,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
       });
     } catch (error) {
-      // Scripts might already be injected
+      console.error('Error injecting scripts:', error);
+      throw error;
     }
   }
 
@@ -589,8 +619,12 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
       if (tab) {
-        // Try to get state from content script
-        const response = await chrome.tabs.sendMessage(tab.id, {action: "getState"});
+        // Try to get state from content script with timeout
+        const response = await Promise.race([
+          chrome.tabs.sendMessage(tab.id, {action: "getState"}),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1000))
+        ]);
+        
         if (response) {
           if (response.readerModeActive) {
             readerModeToggle.checked = true;
@@ -614,6 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       // Error checking initial state, content script not loaded or page just loaded
       // This is normal for fresh page loads - default to normal state
+      console.log('Content script not loaded yet or page just loaded:', error.message);
       statusText.textContent = 'Normal reading mode';
       statusText.className = 'status';
     }
