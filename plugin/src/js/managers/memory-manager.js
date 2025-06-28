@@ -80,21 +80,21 @@
           contentLength: content.length
         });
         
-        // Always check for duplicates first
-        console.log('🔍 Checking for duplicates...');
-        const dup = await deduplicator.checkDuplicate(content, url);
-        
-        if(dup){
-          if(!options.force){
+        let dup = null;
+        if (!options.force) {
+          console.log('🔍 Checking for duplicates...');
+          dup = await deduplicator.checkDuplicate(content, url);
+
+          if (dup) {
             // Duplicate found and not forced - return duplicate info for user confirmation
             console.log('✅ Duplicate detected, requiring user confirmation');
             await eventManager.emit('memory:add:duplicate', dup);
-            return { success:true, processed:false, duplicate:true, info: dup };
-          } else {
-            // Duplicate found but user confirmed to proceed anyway – proceeding
+            return { success: true, processed: false, duplicate: true, info: dup };
           }
-        } else {
+
           console.log('❌ No duplicate found, proceeding with memory addition');
+        } else {
+          console.log('⚠️ Force flag set – skipping duplicate check');
         }
         
         const result = await this.reader.addPageToMemory(content, url, options);
