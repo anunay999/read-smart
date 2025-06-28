@@ -36,10 +36,11 @@
         "js": [
           "lib/Readability.js",
           "lib/marked.min.js",
-          "src/js/managers/config-manager.js",
-          "src/js/managers/storage-manager.js",
           "src/js/managers/event-manager.js",
+          "src/js/managers/storage-manager.js",
+          "src/js/managers/config-manager.js",
           "src/js/features/memory-deduplication.js",
+          "lib/memory-enhanced-reading.js",
           "src/js/managers/memory-manager.js",
           "src/js/cache.js",
           "src/js/core/content.js"

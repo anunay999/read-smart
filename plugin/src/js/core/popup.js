@@ -295,7 +295,18 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          files: ['lib/Readability.js', 'lib/marked.min.js', 'lib/memory-enhanced-reading.js', 'content.js']
+          files: [
+            'lib/Readability.js',
+            'lib/marked.min.js',
+            'src/js/managers/event-manager.js',
+            'src/js/managers/storage-manager.js',
+            'src/js/managers/config-manager.js',
+            'src/js/features/memory-deduplication.js',
+            'lib/memory-enhanced-reading.js',
+            'src/js/managers/memory-manager.js',
+            'src/js/cache.js',
+            'src/js/core/content.js'
+          ]
         });
 
         // Mark preparation done once scripts are injected
@@ -554,8 +565,19 @@ document.addEventListener('DOMContentLoaded', () => {
   async function injectScripts(tabId) {
     try {
       await chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        files: ['lib/Readability.js', 'lib/marked.min.js', 'lib/memory-enhanced-reading.js', 'content.js']
+        target: { tabId },
+        files: [
+          'lib/Readability.js',
+          'lib/marked.min.js',
+          'src/js/managers/event-manager.js',
+          'src/js/managers/storage-manager.js',
+          'src/js/managers/config-manager.js',
+          'src/js/features/memory-deduplication.js',
+          'lib/memory-enhanced-reading.js',
+          'src/js/managers/memory-manager.js',
+          'src/js/cache.js',
+          'src/js/core/content.js'
+        ]
       });
     } catch (error) {
       // Scripts might already be injected
