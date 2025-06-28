@@ -14,24 +14,22 @@ The Read Smart extension is a Chrome browser extension that enhances web reading
 ## Architecture Overview
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Config        │    │   Storage       │    │   Event         │
-│   Manager       │◄──►│   Manager       │◄──►│   Manager       │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         ▲                       ▲                       ▲
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
-                                 │
-┌─────────────────┐    ┌─────────▼─────────┐    ┌─────────────────┐
-│   Memory        │◄──►│   Memory          │◄──►│   Content       │
-│   Deduplicator  │    │   Manager         │    │   Script        │
-└─────────────────┘    └───────────────────┘    └─────────────────┘
-                                 ▲
-                                 │
-                       ┌─────────▼─────────┐
-                       │   Popup           │
-                       │   Script          │
-                       └───────────────────┘
+┌─────────────────────────────────────┐
+│           Extension Layer           │
+│  ┌─────────────────────────────────┐ │
+│  │        MemoryManager           │ │  ← Chrome-specific logic
+│  │  - Event integration           │ │
+│  │  - Deduplication               │ │ 
+│  │  - Error handling              │ │
+│  └─────────────────────────────────┘ │
+│              │                      │
+│  ┌─────────────────────────────────┐ │
+│  │   MemoryEnhancedReading        │ │  ← Pure library
+│  │  - AI operations               │ │
+│  │  - API integrations            │ │
+│  │  - Content processing          │ │
+│  └─────────────────────────────────┘ │
+└─────────────────────────────────────┘
 ```
 
 ## Project Structure
