@@ -1,6 +1,6 @@
 (function(root, factory){
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory(require('../managers/storage-manager.js'), require('../managers/event-manager.js'), require('../managers/config-manager.js'));
+    module.exports = factory(require('../managers/storage-manager.js'), require('../managers/event-manager.js').eventManager, require('../managers/config-manager.js'));
   } else {
     root.deduplicator = factory(root.storageManager, root.eventManager, root.configManager);
   }

@@ -90,10 +90,12 @@ describe('manager modules', () => {
       jest.resetModules();
       jest.mock(configPath, () => ({ getFeatureConfig: () => ({ mem0ApiKey: 'm', geminiApiKey: 'g', geminiModel: 'model', maxMemories: 6, relevanceThreshold: 0.5, debug: false }) }));
       jest.mock(dedupPath, () => ({ checkDuplicate: jest.fn().mockResolvedValue(null), cacheContent: jest.fn() }));
-      const addPage = jest.fn().mockResolvedValue({ success: true, snippetsCount: 2 });
-      const rephrase = jest.fn().mockResolvedValue({ success: true, rephrasedContent: 'out' });
-      const MemLib = jest.fn().mockImplementation(() => ({ addPageToMemory: addPage, rephraseWithUserMemories: rephrase }));
-      jest.mock(memLibPath, () => MemLib);
+      jest.mock(memLibPath, () => {
+        return jest.fn().mockImplementation(() => ({
+          addPageToMemory: jest.fn().mockResolvedValue({ success: true, snippetsCount: 2 }),
+          rephraseWithUserMemories: jest.fn().mockResolvedValue({ success: true, rephrasedContent: 'out' })
+        }));
+      });
       jest.mock(eventPath, () => ({ eventManager: { emit: jest.fn() } }));
     });
 

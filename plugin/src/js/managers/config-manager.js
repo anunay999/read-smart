@@ -1,6 +1,6 @@
 (function(root, factory){
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory(require('./storage-manager.js'), require('./event-manager.js'));
+    module.exports = factory(require('./storage-manager.js'), require('./event-manager.js').eventManager);
   } else {
     root.configManager = factory(root.storageManager, root.eventManager);
   }

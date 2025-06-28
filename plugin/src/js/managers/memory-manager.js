@@ -2,9 +2,9 @@
   if (typeof module === 'object' && module.exports) {
     module.exports = factory(
       require('./config-manager.js'),
-      require('./event-manager.js'),
+      require('./event-manager.js').eventManager,
       require('../features/memory-deduplication.js'),
-      require('../../lib/memory-enhanced-reading.js')
+      require('../../../lib/memory-enhanced-reading.js')
     );
   } else {
     root.memoryManager = factory(root.configManager, root.eventManager, root.deduplicator, root.MemoryEnhancedReading);
