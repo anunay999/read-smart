@@ -122,7 +122,24 @@
       </div>
     </div>
   </div>
-  
+
+  <!-- Duplicate Detection Modal -->
+  <div id="duplicateModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Memory Already Added</h2>
+        <button class="close" id="closeDuplicateModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>This page has already been added to your memory. Add it again?</p>
+      </div>
+      <div class="modal-buttons">
+        <button id="cancelDuplicate" class="modal-button cancel">Cancel</button>
+        <button id="forceAdd" class="modal-button save">Add Anyway</button>
+      </div>
+    </div>
+  </div>
+
   <script src="../js/core/popup.js"></script>
 </body>
 </html>

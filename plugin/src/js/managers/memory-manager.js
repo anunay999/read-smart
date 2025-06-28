@@ -24,11 +24,13 @@
         debug: cfg.debug
       });
     }
-    async addPageToMemory(content, url){
-      const dup = await deduplicator.checkDuplicate(content, url);
-      if(dup){
-        await eventManager.emit('memory:add:duplicate', dup);
-        return { success:true, processed:false, duplicate:true };
+    async addPageToMemory(content, url, opts={}){
+      if(!opts.force){
+        const dup = await deduplicator.checkDuplicate(content, url);
+        if(dup){
+          await eventManager.emit('memory:add:duplicate', dup);
+          return { success:true, processed:false, duplicate:true, info: dup };
+        }
       }
       const result = await this.reader.addPageToMemory(content, url);
       if(result.success){
@@ -38,6 +40,10 @@
         await eventManager.emit('memory:add:failed', result);
       }
       return result;
+    }
+
+    async forceAddToMemory(content, url){
+      return await this.addPageToMemory(content, url, { force: true });
     }
     async rephraseWithUserMemories(content){
       const result = await this.reader.rephraseWithUserMemories(content);

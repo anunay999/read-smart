@@ -30,6 +30,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Progress indicator elements
   const progressContainer = document.getElementById('progressContainer');
   const progressStepsWrapper = document.getElementById('progressSteps');
+
+  // Duplicate modal elements
+  const duplicateModal = document.getElementById('duplicateModal');
+  const closeDuplicateModal = document.getElementById('closeDuplicateModal');
+  const cancelDuplicate = document.getElementById('cancelDuplicate');
+  const forceAddButton = document.getElementById('forceAdd');
+  let pendingTabId = null;
   
   if (!readerModeToggle || !statusText || !rephraseToggle || !configButton || !configModal || !memoryButton) {
     console.error('Required elements not found!');
@@ -144,6 +151,16 @@ document.addEventListener('DOMContentLoaded', () => {
     configModal.style.display = 'none';
   }
 
+  function showDuplicateModal(tabId) {
+    pendingTabId = tabId;
+    duplicateModal.style.display = 'block';
+  }
+
+  function hideDuplicateModal() {
+    duplicateModal.style.display = 'none';
+    pendingTabId = null;
+  }
+
   // Save API configuration
   async function saveApiConfiguration() {
     const geminiKey = geminiApiKeyInput.value.trim();
@@ -244,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Add current page to memory using Memory-Enhanced Reading Library
-  async function addCurrentPageToMemory() {
+  async function addCurrentPageToMemory(force = false) {
     const steps = ['Preparing page', 'Uploading to Mem0', 'Done'];
     startProgress(steps);
     try {
@@ -292,10 +309,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await chrome.tabs.sendMessage(tab.id, {
         action: "addPageToMemory",
         geminiApiKey: geminiKey,
-        mem0ApiKey: mem0Key
+        mem0ApiKey: mem0Key,
+        force
       });
 
-      if (result.success && result.processed) {
+      if (result.duplicate) {
+        memoryButton.textContent = 'Add to Memory';
+        memoryButton.disabled = false;
+        hideProgress();
+        showDuplicateModal(tab.id);
+      } else if (result.success && result.processed) {
         // Show success
         memoryButton.textContent = 'Add to Memory';
         memoryButton.disabled = false;
@@ -345,6 +368,18 @@ document.addEventListener('DOMContentLoaded', () => {
   cancelConfig.addEventListener('click', hideConfigModal);
   saveConfig.addEventListener('click', saveApiConfiguration);
 
+  closeDuplicateModal.addEventListener('click', hideDuplicateModal);
+  cancelDuplicate.addEventListener('click', hideDuplicateModal);
+  forceAddButton.addEventListener('click', async () => {
+    hideDuplicateModal();
+    if (pendingTabId) {
+      await addCurrentPageToMemory(true);
+    }
+  });
+  duplicateModal.addEventListener('click', (e) => {
+    if (e.target === duplicateModal) hideDuplicateModal();
+  });
+
   // Event listener for memory button
   memoryButton.addEventListener('click', addCurrentPageToMemory);
 
@@ -360,8 +395,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Handle ESC key to close modal
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && configModal.style.display === 'block') {
-      hideConfigModal();
+    if (e.key === 'Escape') {
+      if (configModal.style.display === 'block') {
+        hideConfigModal();
+      }
+      if (duplicateModal.style.display === 'block') {
+        hideDuplicateModal();
+      }
     }
   });
 

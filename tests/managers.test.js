@@ -119,6 +119,16 @@ describe('manager modules', () => {
       expect(dedup.cacheContent).toHaveBeenCalled();
       expect(eventManager.emit).toHaveBeenCalledWith('memory:add:success', expect.any(Object));
     });
+
+    test('forceAdd bypasses deduplication check', async () => {
+      const dedup = require(dedupPath);
+      const { eventManager } = require(eventPath);
+      const memoryManager = freshRequire(memoryPath);
+      await memoryManager.initialize();
+      await memoryManager.addPageToMemory('c', 'u', { force: true });
+      expect(dedup.checkDuplicate).not.toHaveBeenCalled();
+      expect(eventManager.emit).toHaveBeenCalledWith('memory:add:success', expect.any(Object));
+    });
   });
 });
 

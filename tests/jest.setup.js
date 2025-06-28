@@ -62,6 +62,7 @@ if (typeof global.memoryManager === 'undefined') {
   global.memoryManager = {
     initialize: jest.fn(() => Promise.resolve()),
     addPageToMemory: jest.fn(() => Promise.resolve({ success: true })),
+    forceAddToMemory: jest.fn(() => Promise.resolve({ success: true })),
     rephraseWithUserMemories: jest.fn(() => Promise.resolve({ success: true })),
     reader: { generateWithGemini: jest.fn(() => Promise.resolve('')) }
   };

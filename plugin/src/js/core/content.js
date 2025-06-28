@@ -152,8 +152,8 @@ const messageHandlers = {
     return await extractPageContentForMemory();
   },
 
-  addPageToMemory: async () => {
-    return await addPageToMemory();
+  addPageToMemory: async (request) => {
+    return await addPageToMemory(request.force);
   }
 };
 
@@ -570,14 +570,15 @@ async function rephraseWithGemini(text) {
 }
 
 
-async function addPageToMemory() {
+async function addPageToMemory(force = false) {
   try {
     const contentResult = await extractPageContentForMemory();
     if (!contentResult.success) {
       throw new Error('Failed to extract page content');
     }
     const pageUrl = window.location.href;
-    return await memoryManager.addPageToMemory(contentResult.content, pageUrl);
+    const opts = force ? { force: true } : {};
+    return await memoryManager.addPageToMemory(contentResult.content, pageUrl, opts);
   } catch (error) {
     console.error('❌ Error in addPageToMemory:', error);
     return { success: false, processed: false, error: error.message };
