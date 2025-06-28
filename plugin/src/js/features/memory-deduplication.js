@@ -21,20 +21,36 @@
       return hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
     }
     async checkDuplicate(content, url){
-      const hash = await this._hash(content+'|'+url+'|'+content.length);
+      const hashInput = content+'|'+url+'|'+content.length;
+      
+      const hash = await this._hash(hashInput);
       const key = this.cachePrefix + hash.substring(0,16);
+      
+      console.log('🔑 Generated hash key:', key);
+      
       const existing = await storageManager.getLocal(key);
       if(existing){
+        console.log('✅ Duplicate found:', existing);
         await eventManager.emit('dedup:hit', existing);
         return existing;
       }
+      
+      console.log('❌ No duplicate found for key:', key);
       await eventManager.emit('dedup:miss', {hash});
       return null;
     }
     async cacheContent(content, url, metadata={}){
-      const hash = await this._hash(content+'|'+url+'|'+content.length);
+      const hashInput = content+'|'+url+'|'+content.length;
+      const hash = await this._hash(hashInput);
       const key = this.cachePrefix + hash.substring(0,16);
       const entry = { hash, pageUrl:url, processedAt:Date.now(), contentLength:content.length, ...metadata };
+      
+      console.log('💾 Caching content with key:', key, {
+        url: url,
+        contentLength: content.length,
+        metadata: metadata
+      });
+      
       await storageManager.setLocal(key, entry);
     }
   }

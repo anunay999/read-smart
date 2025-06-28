@@ -337,9 +337,20 @@ async function extractPageContentForMemory() {
     const article = reader.parse();
     
     if (article && article.textContent && article.textContent.trim().length > 100) {
+      const extractedContent = article.textContent.trim();
+      
+      // Debug: Log content extraction details
+      console.log('📄 Content extracted via Readability:', {
+        title: article.title || document.title || 'Untitled Page',
+        contentLength: extractedContent.length,
+        contentHash: await simpleHash(extractedContent),
+        contentPreview: extractedContent.substring(0, 200) + '...',
+        url: window.location.href
+      });
+      
       return {
         success: true,
-        content: article.textContent.trim(),
+        content: extractedContent,
         title: article.title || document.title || 'Untitled Page'
       };
     }
@@ -352,6 +363,15 @@ async function extractPageContentForMemory() {
       throw new Error('Insufficient content found on page');
     }
     
+    // Debug: Log fallback content extraction
+    console.log('📄 Content extracted via fallback:', {
+      title: title,
+      contentLength: content.length,
+      contentHash: await simpleHash(content),
+      contentPreview: content.substring(0, 200) + '...',
+      url: window.location.href
+    });
+    
     return {
       success: true,
       content: content,
@@ -361,6 +381,15 @@ async function extractPageContentForMemory() {
     console.error('❌ Error extracting page content:', error);
     throw new Error('Failed to extract page content: ' + error.message);
   }
+}
+
+// Simple hash function for debugging content consistency
+async function simpleHash(text) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
 }
 
 function extractVisibleText() {

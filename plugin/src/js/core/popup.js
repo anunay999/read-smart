@@ -154,11 +154,20 @@ document.addEventListener('DOMContentLoaded', () => {
   function showDuplicateModal(tabId) {
     pendingTabId = tabId;
     duplicateModal.style.display = 'block';
+    // Update status banner
+    statusText.textContent = 'Memory already added';
+    statusText.className = 'status';
   }
 
   function hideDuplicateModal() {
     duplicateModal.style.display = 'none';
     pendingTabId = null;
+    // Restore status banner to current mode
+    const currentMode = readerModeToggle.checked ? 'Smart reading mode active' : 'Normal reading mode';
+    statusText.textContent = currentMode;
+    statusText.className = readerModeToggle.checked ? 'status active' : 'status';
+    // Ensure progress is hidden
+    hideProgress();
   }
 
   // Save API configuration
@@ -431,7 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Event listener for memory button
-  memoryButton.addEventListener('click', addCurrentPageToMemory);
+  memoryButton.addEventListener('click', () => addCurrentPageToMemory(false));
 
   // Event listener for dashboard button
   dashboardButton.addEventListener('click', openDashboard);
@@ -759,15 +768,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize the popup
   loadSavedData();
   checkInitialState();
-
-  // Trigger slide-in animation
-  const mainContainer = document.querySelector('.container');
-  if (mainContainer) {
-    requestAnimationFrame(() => {
-      mainContainer.style.transform = 'translateX(0)';
-      mainContainer.style.opacity = '1';
-    });
-  }
 
   // Auto-scroll Advanced section into view when expanded
   const advancedSection = document.getElementById('advancedSection');

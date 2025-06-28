@@ -27,8 +27,19 @@
           throw new Error('MemoryEnhancedReading not loaded');
         }
 
-        // Create new instance
-        this.reader = new MemoryEnhancedReading();
+        // Get configuration
+        const cfg = configManager.getFeatureConfig('memory');
+        
+        // Create MemoryEnhancedReading instance with proper configuration
+        this.reader = new MemoryEnhancedReading({
+          mem0ApiKey: cfg.mem0ApiKey,
+          geminiApiKey: cfg.geminiApiKey,
+          geminiModel: cfg.geminiModel,
+          userId: 'chrome_extension_user',
+          maxMemories: cfg.maxMemories,
+          relevanceThreshold: cfg.relevanceThreshold,
+          debug: cfg.debug
+        });
         
         if (!this.reader) {
           throw new Error('Failed to create MemoryEnhancedReading instance');
@@ -64,20 +75,36 @@
       try {
         this._ensureInitialized();
         
-        if(!options.force){
-          const dup = await deduplicator.checkDuplicate(content, url);
-          if(dup){
+        console.log('🧠 Memory Manager: Starting addPageToMemory', {
+          url: url,
+          contentLength: content.length
+        });
+        
+        // Always check for duplicates first
+        console.log('🔍 Checking for duplicates...');
+        const dup = await deduplicator.checkDuplicate(content, url);
+        
+        if(dup){
+          if(!options.force){
+            // Duplicate found and not forced - return duplicate info for user confirmation
+            console.log('✅ Duplicate detected, requiring user confirmation');
             await eventManager.emit('memory:add:duplicate', dup);
             return { success:true, processed:false, duplicate:true, info: dup };
+          } else {
+            // Duplicate found but user confirmed to proceed anyway – proceeding
           }
+        } else {
+          console.log('❌ No duplicate found, proceeding with memory addition');
         }
         
         const result = await this.reader.addPageToMemory(content, url, options);
         
         if(result.success){
+          console.log('✅ Memory addition successful, caching content');
           await deduplicator.cacheContent(content, url, { snippetsCount: result.snippetsCount });
           await eventManager.emit('memory:add:success', result);
         } else {
+          console.log('❌ Memory addition failed');
           await eventManager.emit('memory:add:failed', result);
         }
         return result;

@@ -20,9 +20,17 @@ body {
 .container {
   padding: 24px;
   position: relative;
-  transform: translateX(40px);
+  /* Start invisible and slid-over, then animate in purely via CSS so we never depend on JS */
   opacity: 0;
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateX(40px);
+  animation: readSmartSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes readSmartSlideIn {
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .container::before {
@@ -399,4 +407,11 @@ input:checked + .slider:before {
 .modal-body::-webkit-scrollbar-thumb {
   background: #333;
   border-radius: 4px;
-} 
+}
+
+/* ================= Duplicate Modal Override ================ */
+#duplicateModal .modal-body {
+  padding: 24px; /* uniform padding all around, removes extra 160px bottom */
+  max-height: none; /* ensure no unnecessary scroll space */
+}
+/* =========================================================== */ 
