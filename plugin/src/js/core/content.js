@@ -475,7 +475,7 @@ async function renderReaderOverlay(article, isMarkdown = false) {
   
   state.overlay = document.createElement('div');
   state.overlay.id = CONSTANTS.OVERLAY_ID;
-  state.overlay.className = `fixed inset-0 w-screen h-screen overflow-auto bg-[#f4ecd8] z-[${CONSTANTS.Z_INDEX}]`;
+  state.overlay.className = `relative w-full bg-[#f4ecd8] z-[${CONSTANTS.Z_INDEX}]`;
   
   await injectReaderStyles();
   await loadReaderTemplate(state.overlay, article, isMarkdown);
@@ -711,9 +711,7 @@ function hideDOMExceptOverlay() {
     }
   });
 
-  // Disable scrolling on the main page to avoid double scrollbars
-  document.documentElement.style.overflow = 'hidden';
-  document.body.style.overflow = 'hidden';
+  // Allow natural page scrolling; overlay will stretch with its content
 }
 
 function restoreOriginalContent() {
@@ -722,10 +720,6 @@ function restoreOriginalContent() {
       child.style.display = '';
     }
   });
-
-  // Re-enable page scrolling
-  document.documentElement.style.overflow = '';
-  document.body.style.overflow = '';
 }
 
 // =============================================================================

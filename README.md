@@ -19,6 +19,8 @@
 
 • **Privacy First** – All memories live on your own machine or in your own Mem0 account; nothing is ever sent to our servers.
 
+• **Blazing-Fast Performance** – In-memory caching and smart duplicate detection skip redundant AI calls, so pages open and rephrase almost instantly.
+
 ---
 
 ## Demo
@@ -41,7 +43,7 @@
 |-------|------|------|
 | **Content Script** | JS + Readability.js | Extracts main article & injects overlay |
 | **Memory Engine** | `memory-enhanced-reading.js` | Searches your personal memory vault & asks Gemini to rewrite |
-| **Browser Cache** | In-memory L1 cache | Instant back/forward page loads |
+| **Browser Cache** | In-memory L1 cache | Instant back/forward page loads & duplicate-detection speed-ups |
 | **Mem0** | Your own account | Long-term, encrypted memory storage |
 
 ---
