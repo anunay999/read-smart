@@ -4,8 +4,20 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-## [Unreleased]
-- _Nothing yet._
+## [0.4.0] - 2025-06-28
+- ### Added
+  - **Complete Architecture Guide** – new `docs/ARCHITECTURE.md` describes the refactored, event-driven extension structure, component responsibilities, loading order, and development workflows.
+  - **CSS-only popup animation** – the popup container now slides in purely via CSS, ensuring it is visible even if JavaScript fails (`popup.css`).
+  - **Two-stage duplicate detection** – URL-based fast path plus content-fingerprint hash for near-instant duplicate checks (`memory-deduplication.js`).
+
+- ### Changed
+  - Refactored `memory-deduplication.js` to use the new two-stage algorithm, dramatically improving performance on large pages.
+  - `MemoryManager.forceAddToMemory` now explicitly skips duplicate checks (with log), aligning runtime behaviour with UI copy and test expectations (`memory-manager.js`).
+  - Removed hard-coded animation styles from `popup.js`; all entrance animations are handled in CSS.
+
+- ### Fixed
+  - Eliminated rare "blank popup" issue that occurred after consecutive rapid openings.
+  - Resolved failing Jest test *manager modules › MemoryManager › forceAdd bypasses deduplication check*; all suites pass.
 
 ---
 
