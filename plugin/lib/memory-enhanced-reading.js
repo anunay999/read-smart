@@ -1,3 +1,8 @@
+// Prevent duplicate loading
+if (typeof window !== 'undefined' && window.MemoryEnhancedReading) {
+  // Already loaded, skip
+} else {
+
 /**
  * Memory-Enhanced Reading Library
  * A JavaScript library for Chrome extensions that personalizes web content
@@ -299,12 +304,12 @@ class MemoryEnhancedReading {
         You are an elite content-personaliser.
 
         GOAL  
-        Rewrite the article in the author’s voice, only covering NEW information for the reader, and tightly link back to their stored memories.
+        Rewrite the article in the author's voice, only covering NEW information for the reader, and tightly link back to their stored memories.
 
         HARD RULES  ❗
         1. Output **exactly** two top-level headings, in this order (no pre-amble, no epilogue):  
         ## SECTION 1 – Recap & References  
-        ## SECTION 2 – Fresh Content in Author’s Voice  
+        ## SECTION 2 – Fresh Content in Author's Voice  
         2. Stop writing immediately after SECTION 2.  
         3. Max **900 words** total; max **3 sentences** per paragraph.  
         4. Insert a sub-heading or bullet block at least every **120 words** within SECTION 2.  
@@ -312,13 +317,13 @@ class MemoryEnhancedReading {
         • **Context Bridge** – 1-2 sentences.  
         • **What You Already Know** – 3-7 bullets, ≤ 8 words each.  
         • **References** – bullet list of \`[Title](URL)\` links.  
-        6. No other headings, no metadata (“8 min read”), no HTML; output must be valid Markdown.  
+        6. No other headings, no metadata ("8 min read"), no HTML; output must be valid Markdown.  
         7. If any rule is broken, RESTART and fix before finalising.
 
         STYLE HINTS  
-        • Match the author’s vocabulary and cadence (semi-formal tech-blog).  
+        • Match the author's vocabulary and cadence (semi-formal tech-blog).  
         • Bold key take-aways, italicise pivotal terms, use \`> block-quotes\` sparingly.  
-        • Replace filler like “Let’s be real” unless in the original.
+        • Replace filler like "Let's be real" unless in the original.
 
         INPUTS  
         READER_MEMORIES  
@@ -482,4 +487,6 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = MemoryEnhancedReading;
 } else if (typeof window !== 'undefined') {
     window.MemoryEnhancedReading = MemoryEnhancedReading;
-} 
+}
+
+} // End of duplicate loading guard 

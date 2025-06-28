@@ -30,7 +30,7 @@
 ## 🏁 Quick Start
 
 1. Clone / download the repo and load the `plugin` folder as an *unpacked extension* in Chrome.
-2. Follow the [Getting Started](./GETTING_STARTED.md) guide to add your Gemini & Mem0 API keys.
+2. Follow the [Getting Started](./docs/GETTING_STARTED.md) guide to add your Gemini & Mem0 API keys.
 3. Visit any article, open the extension, and flip **Smart Rephrase Mode**. That's it!
 
 ---

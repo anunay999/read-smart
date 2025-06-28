@@ -30,6 +30,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Progress indicator elements
   const progressContainer = document.getElementById('progressContainer');
   const progressStepsWrapper = document.getElementById('progressSteps');
+
+  // Duplicate modal elements
+  const duplicateModal = document.getElementById('duplicateModal');
+  const closeDuplicateModal = document.getElementById('closeDuplicateModal');
+  const cancelDuplicate = document.getElementById('cancelDuplicate');
+  const forceAddButton = document.getElementById('forceAdd');
+  let pendingTabId = null;
   
   if (!readerModeToggle || !statusText || !rephraseToggle || !configButton || !configModal || !memoryButton) {
     console.error('Required elements not found!');
@@ -144,6 +151,25 @@ document.addEventListener('DOMContentLoaded', () => {
     configModal.style.display = 'none';
   }
 
+  function showDuplicateModal(tabId) {
+    pendingTabId = tabId;
+    duplicateModal.style.display = 'block';
+    // Update status banner
+    statusText.textContent = 'Memory already added';
+    statusText.className = 'status';
+  }
+
+  function hideDuplicateModal() {
+    duplicateModal.style.display = 'none';
+    pendingTabId = null;
+    // Restore status banner to current mode
+    const currentMode = readerModeToggle.checked ? 'Smart reading mode active' : 'Normal reading mode';
+    statusText.textContent = currentMode;
+    statusText.className = readerModeToggle.checked ? 'status active' : 'status';
+    // Ensure progress is hidden
+    hideProgress();
+  }
+
   // Save API configuration
   async function saveApiConfiguration() {
     const geminiKey = geminiApiKeyInput.value.trim();
@@ -244,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Add current page to memory using Memory-Enhanced Reading Library
-  async function addCurrentPageToMemory() {
+  async function addCurrentPageToMemory(force = false) {
     const steps = ['Preparing page', 'Uploading to Mem0', 'Done'];
     startProgress(steps);
     try {
@@ -276,15 +302,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // First, inject content script if needed
       try {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['lib/Readability.js', 'lib/marked.min.js', 'lib/memory-enhanced-reading.js', 'content.js']
-        });
-
-        // Mark preparation done once scripts are injected
+        await injectScripts(tab.id);
+        // Mark preparation done once scripts are injected/verified
         completeProgressStep(0, steps.length);
       } catch (scriptError) {
-        // Content script might already be injected
+        // Content script might already be injected or injection failed
         completeProgressStep(0, steps.length); // still mark step done
       }
       
@@ -292,10 +314,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await chrome.tabs.sendMessage(tab.id, {
         action: "addPageToMemory",
         geminiApiKey: geminiKey,
-        mem0ApiKey: mem0Key
+        mem0ApiKey: mem0Key,
+        force
       });
 
-      if (result.success && result.processed) {
+      if (result.duplicate) {
+        memoryButton.textContent = 'Add to Memory';
+        memoryButton.disabled = false;
+        hideProgress();
+        showDuplicateModal(tab.id);
+      } else if (result.success && result.processed) {
         // Show success
         memoryButton.textContent = 'Add to Memory';
         memoryButton.disabled = false;
@@ -318,23 +346,77 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } catch (error) {
       console.error('❌ Error in addCurrentPageToMemory:', error);
-      console.error('❌ Error stack:', error.stack);
       
       // Reset button state
       memoryButton.textContent = 'Add to Memory';
       memoryButton.disabled = false;
       
-      // Show error message
-      statusText.textContent = 'Failed to add memory';
-      statusText.className = 'status';
+      // Provide specific error messages based on error type
+      let userMessage = 'Failed to add memory';
+      let shouldShowAlert = true;
       
+      if (error.message.includes('not available') || error.message.includes('not properly loaded')) {
+        userMessage = 'Extension loading error - refresh page';
+        statusText.textContent = userMessage;
+        statusText.className = 'status';
+        
+        // Show helpful alert for this specific issue
+        setTimeout(() => {
+          alert('The extension components are not properly loaded. Please:\n\n1. Refresh the current page\n2. Wait for the page to fully load\n3. Try adding to memory again\n\nIf the problem persists, try reloading the extension.');
+        }, 100);
+        shouldShowAlert = false;
+        
+      } else if (error.message.includes('API key') || error.message.includes('Invalid')) {
+        userMessage = 'API key issue - check settings';
+        statusText.textContent = userMessage;
+        statusText.className = 'status';
+        
+        setTimeout(() => {
+          alert('There is an issue with your API keys. Please:\n\n1. Open Settings\n2. Verify both Gemini and Mem0 API keys are correct\n3. Save the configuration\n4. Try again');
+          showConfigModal();
+        }, 100);
+        shouldShowAlert = false;
+        
+      } else if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+        userMessage = 'Network error - check connection';
+        statusText.textContent = userMessage;
+        statusText.className = 'status';
+        
+        setTimeout(() => {
+          alert('Network error occurred. Please:\n\n1. Check your internet connection\n2. Verify API keys are valid\n3. Disable ad blockers temporarily\n4. Try again');
+        }, 100);
+        shouldShowAlert = false;
+        
+      } else if (error.message.includes('content blocker') || error.message.includes('ERR_BLOCKED')) {
+        userMessage = 'Content blocker interference';
+        statusText.textContent = userMessage;
+        statusText.className = 'status';
+        
+        setTimeout(() => {
+          alert('Content blocker is interfering with the extension. Please:\n\n1. Disable ad blockers on this page\n2. Add these domains to your allowlist:\n   - generativelanguage.googleapis.com\n   - api.mem0.ai\n3. Try again');
+        }, 100);
+        shouldShowAlert = false;
+        
+      } else {
+        // Generic error
+        statusText.textContent = userMessage;
+        statusText.className = 'status';
+      }
+      
+      // Reset status after a delay
       setTimeout(() => {
         const currentMode = readerModeToggle.checked ? 'Smart reading mode active' : 'Normal reading mode';
         statusText.textContent = currentMode;
         statusText.className = readerModeToggle.checked ? 'status active' : 'status';
-      }, 3000);
+      }, 5000);
       
-      alert('Failed to add memory. Please check your API keys and try again.');
+      // Show generic alert only if we haven't shown a specific one
+      if (shouldShowAlert) {
+        setTimeout(() => {
+          alert('Failed to add memory. Error: ' + error.message + '\n\nPlease check your API keys and try again.');
+        }, 100);
+      }
+      
       hideProgress();
     }
   }
@@ -345,8 +427,20 @@ document.addEventListener('DOMContentLoaded', () => {
   cancelConfig.addEventListener('click', hideConfigModal);
   saveConfig.addEventListener('click', saveApiConfiguration);
 
+  closeDuplicateModal.addEventListener('click', hideDuplicateModal);
+  cancelDuplicate.addEventListener('click', hideDuplicateModal);
+  forceAddButton.addEventListener('click', async () => {
+    hideDuplicateModal();
+    if (pendingTabId) {
+      await addCurrentPageToMemory(true);
+    }
+  });
+  duplicateModal.addEventListener('click', (e) => {
+    if (e.target === duplicateModal) hideDuplicateModal();
+  });
+
   // Event listener for memory button
-  memoryButton.addEventListener('click', addCurrentPageToMemory);
+  memoryButton.addEventListener('click', () => addCurrentPageToMemory(false));
 
   // Event listener for dashboard button
   dashboardButton.addEventListener('click', openDashboard);
@@ -360,8 +454,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Handle ESC key to close modal
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && configModal.style.display === 'block') {
-      hideConfigModal();
+    if (e.key === 'Escape') {
+      if (configModal.style.display === 'block') {
+        hideConfigModal();
+      }
+      if (duplicateModal.style.display === 'block') {
+        hideDuplicateModal();
+      }
     }
   });
 
@@ -482,14 +581,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         setTimeout(() => hideProgress(), 1500);
       } else {
-        throw new Error(response?.error || 'Failed to enable smart rephrase');
+        const errorMessage = response?.error || 'Failed to enable smart rephrase';
+        console.error('Smart rephrase error:', errorMessage);
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('Error enabling smart rephrase:', error);
       rephraseToggle.checked = false;
-      statusText.textContent = 'Error enabling smart rephrase';
+      
+      // Provide more specific error messages
+      let errorMessage = 'Error enabling smart rephrase';
+      if (error.message.includes('API key')) {
+        errorMessage = 'API key issue - check settings';
+      } else if (error.message.includes('not properly initialized')) {
+        errorMessage = 'Initialization error - try refreshing page';
+      } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        errorMessage = 'Network error - check connection';
+      }
+      
+      statusText.textContent = errorMessage;
       statusText.className = 'status';
       hideProgress();
+      
+      // Show alert for serious errors
+      if (error.message.includes('not properly initialized')) {
+        alert('Smart rephrase failed to initialize. Please refresh the page and try again.');
+      }
     }
   }
 
@@ -513,12 +630,35 @@ document.addEventListener('DOMContentLoaded', () => {
   // Helper function to inject required scripts
   async function injectScripts(tabId) {
     try {
+      // Check if content script is already initialized
+      const response = await chrome.tabs.sendMessage(tabId, {action: "getState"});
+      if (response) {
+        // Content script is already loaded and responding
+        return;
+      }
+    } catch (error) {
+      // Content script not loaded, proceed with injection
+    }
+
+    try {
       await chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        files: ['lib/Readability.js', 'lib/marked.min.js', 'lib/memory-enhanced-reading.js', 'content.js']
+        target: { tabId },
+        files: [
+          'lib/Readability.js',
+          'lib/marked.min.js',
+          'src/js/managers/event-manager.js',
+          'src/js/managers/storage-manager.js',
+          'src/js/managers/config-manager.js',
+          'src/js/features/memory-deduplication.js',
+          'lib/memory-enhanced-reading.js',
+          'src/js/managers/memory-manager.js',
+          'src/js/cache.js',
+          'src/js/core/content.js'
+        ]
       });
     } catch (error) {
-      // Scripts might already be injected
+      console.error('Error injecting scripts:', error);
+      throw error;
     }
   }
 
@@ -527,8 +667,12 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
       if (tab) {
-        // Try to get state from content script
-        const response = await chrome.tabs.sendMessage(tab.id, {action: "getState"});
+        // Try to get state from content script with timeout
+        const response = await Promise.race([
+          chrome.tabs.sendMessage(tab.id, {action: "getState"}),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1000))
+        ]);
+        
         if (response) {
           if (response.readerModeActive) {
             readerModeToggle.checked = true;
@@ -552,6 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       // Error checking initial state, content script not loaded or page just loaded
       // This is normal for fresh page loads - default to normal state
+      console.log('Content script not loaded yet or page just loaded:', error.message);
       statusText.textContent = 'Normal reading mode';
       statusText.className = 'status';
     }
@@ -623,15 +768,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize the popup
   loadSavedData();
   checkInitialState();
-
-  // Trigger slide-in animation
-  const mainContainer = document.querySelector('.container');
-  if (mainContainer) {
-    requestAnimationFrame(() => {
-      mainContainer.style.transform = 'translateX(0)';
-      mainContainer.style.opacity = '1';
-    });
-  }
 
   // Auto-scroll Advanced section into view when expanded
   const advancedSection = document.getElementById('advancedSection');

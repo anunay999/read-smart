@@ -75,30 +75,33 @@ const state = new ReadSmartState();
 // INITIALIZATION
 // =============================================================================
 
-function initializeContentScript() {
-  // Load stored API key and advanced config
-  chrome.storage.sync.get([
-    'geminiApiKey',
-    'systemPrompt',
-    'relevanceThreshold',
-    'maxMemories',
-    'geminiModel',
-  ], (result) => {
-    state.geminiApiKey = result.geminiApiKey;
-    state.config.systemPrompt = result.systemPrompt || state.config.systemPrompt;
-    if (typeof result.relevanceThreshold === 'number') {
-      state.config.relevanceThreshold = result.relevanceThreshold;
-    }
-    if (typeof result.maxMemories === 'number') {
-      state.config.maxMemories = result.maxMemories;
-    }
-    if (typeof result.geminiModel === 'string') {
-      state.config.geminiModel = result.geminiModel;
-    }
-  });
+async function initializeContentScript() {
+  try {
+    await configManager.initialize();
+    await deduplicator.initialize();
+    await memoryManager.initialize();
 
-  // Notify that content script is ready
-  chrome.runtime.sendMessage({ action: "contentScriptReady" });
+    state.geminiApiKey = configManager.get('geminiApiKey');
+    state.config.systemPrompt = configManager.get('systemPrompt');
+    state.config.relevanceThreshold = configManager.get('relevanceThreshold');
+    state.config.maxMemories = configManager.get('maxMemories');
+    state.config.geminiModel = configManager.get('geminiModel');
+    state.config.debug = configManager.get('debugMode');
+
+    chrome.runtime.sendMessage({ action: 'contentScriptReady' });
+    
+  } catch (error) {
+    console.error('❌ Content script initialization failed:', error);
+    
+    // Try to provide a fallback state
+    try {
+      if (configManager && typeof configManager.get === 'function') {
+        state.geminiApiKey = configManager.get('geminiApiKey');
+      }
+    } catch (fallbackError) {
+      console.error('❌ Fallback initialization also failed:', fallbackError);
+    }
+  }
 }
 
 // =============================================================================
@@ -126,8 +129,8 @@ const messageHandlers = {
     }
   },
 
-  enableSmartRephrase: async (request) => {
-    await enableSmartRephraseMode(request.geminiApiKey, request.mem0ApiKey);
+  enableSmartRephrase: async () => {
+    await enableSmartRephraseMode();
     return { success: true };
   },
 
@@ -143,16 +146,15 @@ const messageHandlers = {
 
   updateApiKeys: (request) => {
     state.geminiApiKey = request.geminiApiKey;
+    configManager.set('geminiApiKey', request.geminiApiKey);
     return { success: true };
   },
 
   // NEW: handle dynamic config updates
   configUpdated: (request) => {
     if (request.config) {
-      state.config = {
-        ...state.config,
-        ...request.config
-      };
+      configManager.set(request.config);
+      state.config = { ...state.config, ...request.config };
       if (request.config.geminiApiKey) {
         state.geminiApiKey = request.config.geminiApiKey;
       }
@@ -165,7 +167,7 @@ const messageHandlers = {
   },
 
   addPageToMemory: async (request) => {
-    return await addPageToMemory(request.geminiApiKey, request.mem0ApiKey);
+    return await addPageToMemory(request.force);
   }
 };
 
@@ -222,7 +224,7 @@ async function enablePlainReaderMode() {
   }
 }
 
-async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
+async function enableSmartRephraseMode() {
   try {
     const pageUrl = window.location.href;
 
@@ -256,7 +258,7 @@ async function enableSmartRephraseMode(geminiApiKey, mem0ApiKey) {
     );
     
     // Try memory-enhanced rephrasing first, then fallback to regular Gemini
-    const rephrasedContent = await tryRephraseWithMemories(article, geminiApiKey, mem0ApiKey);
+    const rephrasedContent = await tryRephraseWithMemories(article);
     
     // Wait for minimum display time and show content
     await minDisplayTime;
@@ -335,9 +337,20 @@ async function extractPageContentForMemory() {
     const article = reader.parse();
     
     if (article && article.textContent && article.textContent.trim().length > 100) {
+      const extractedContent = article.textContent.trim();
+      
+      // Debug: Log content extraction details
+      console.log('📄 Content extracted via Readability:', {
+        title: article.title || document.title || 'Untitled Page',
+        contentLength: extractedContent.length,
+        contentHash: await simpleHash(extractedContent),
+        contentPreview: extractedContent.substring(0, 200) + '...',
+        url: window.location.href
+      });
+      
       return {
         success: true,
-        content: article.textContent.trim(),
+        content: extractedContent,
         title: article.title || document.title || 'Untitled Page'
       };
     }
@@ -350,6 +363,15 @@ async function extractPageContentForMemory() {
       throw new Error('Insufficient content found on page');
     }
     
+    // Debug: Log fallback content extraction
+    console.log('📄 Content extracted via fallback:', {
+      title: title,
+      contentLength: content.length,
+      contentHash: await simpleHash(content),
+      contentPreview: content.substring(0, 200) + '...',
+      url: window.location.href
+    });
+    
     return {
       success: true,
       content: content,
@@ -359,6 +381,15 @@ async function extractPageContentForMemory() {
     console.error('❌ Error extracting page content:', error);
     throw new Error('Failed to extract page content: ' + error.message);
   }
+}
+
+// Simple hash function for debugging content consistency
+async function simpleHash(text) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
 }
 
 function extractVisibleText() {
@@ -553,9 +584,15 @@ function disableReaderStyles() {
 // CONTENT REPHRASING
 // =============================================================================
 
-async function tryRephraseWithMemories(article, geminiApiKey, mem0ApiKey) {
+async function tryRephraseWithMemories(article) {
   try {
-    const result = await rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKey);
+    // Check if memoryManager is properly initialized
+    if (!memoryManager || !memoryManager.reader) {
+      console.error('Memory manager not properly initialized, falling back to Gemini');
+      return await rephraseWithGemini(article.textContent);
+    }
+
+    const result = await memoryManager.rephraseWithUserMemories(article.textContent);
     if (result.success && result.rephrasedContent) {
       console.log('Successfully rephrased with memories');
       return result.rephrasedContent;
@@ -563,8 +600,7 @@ async function tryRephraseWithMemories(article, geminiApiKey, mem0ApiKey) {
   } catch (error) {
     console.error('Memory rephrasing failed, falling back to Gemini:', error);
   }
-  
-  // Fallback to regular Gemini rephrasing
+
   console.log('Using fallback Gemini rephrasing');
   return await rephraseWithGemini(article.textContent);
 }
@@ -573,84 +609,65 @@ async function rephraseWithGemini(text) {
   if (!state.geminiApiKey) {
     throw new Error('Gemini API key not set. Please set it in the extension settings.');
   }
-  
-  if (typeof MemoryEnhancedReading === 'undefined') {
-    throw new Error('MemoryEnhancedReading library not loaded');
+
+  // Check if memoryManager and reader are available
+  if (!memoryManager || !memoryManager.reader || typeof memoryManager.reader.generateWithGemini !== 'function') {
+    throw new Error('Memory manager not properly initialized. Cannot access Gemini functionality.');
   }
-  
+
   const promptBase = state.config.systemPrompt && state.config.systemPrompt.trim().length > 0
     ? state.config.systemPrompt.trim()
     : 'Please rephrase the following text in a clear, engaging, and easy-to-read style while maintaining the original meaning and key information. Render in Markdown format:';
   const prompt = `${promptBase}\n\n---\n\n${text}`;
-  
-  const memoryReader = new MemoryEnhancedReading({
-    geminiApiKey: state.geminiApiKey,
-    geminiModel: state.config.geminiModel,
-    userId: CONSTANTS.USER_ID,
-    debug: state.config.debug
-  });
-  
-  return await memoryReader.generateWithGemini(prompt);
+
+  return await memoryManager.reader.generateWithGemini(prompt);
 }
 
-async function rephraseWithMemoriesUsingArticle(article, geminiApiKey, mem0ApiKey) {
-  if (typeof MemoryEnhancedReading === 'undefined') {
-    throw new Error('MemoryEnhancedReading library not loaded');
-  }
-  
-  const memoryReader = new MemoryEnhancedReading({
-    mem0ApiKey: mem0ApiKey,
-    geminiApiKey: geminiApiKey,
-    geminiModel: state.config.geminiModel,
-    userId: CONSTANTS.USER_ID,
-    debug: state.config.debug,
-    maxMemories: state.config.maxMemories,
-    relevanceThreshold: state.config.relevanceThreshold
-  });
 
-  const result = await memoryReader.rephraseWithUserMemories(article.textContent);
-  
-  if (result.success && result.rephrasedContent && result.rephrasedContent.trim().length > 0) {
-    return result;
-  }
-  
-  return {
-    success: false,
-    error: 'No content generated from memory rephrasing'
-  };
-}
-
-async function addPageToMemory(geminiApiKey, mem0ApiKey) {
+async function addPageToMemory(force = false) {
   try {
-    if (typeof MemoryEnhancedReading === 'undefined') {
-      throw new Error('MemoryEnhancedReading library not loaded');
+    // Check if memoryManager is properly initialized
+    if (typeof memoryManager === 'undefined' || memoryManager === null) {
+      throw new Error('Memory manager not available. Please refresh the page and try again.');
     }
-    
+
+    // Check if memoryManager has the required method
+    if (!memoryManager.addPageToMemory || typeof memoryManager.addPageToMemory !== 'function') {
+      throw new Error('Memory manager missing addPageToMemory method. Please refresh the page.');
+    }
+
     const contentResult = await extractPageContentForMemory();
-    
     if (!contentResult.success) {
-      throw new Error('Failed to extract page content');
+      throw new Error('Failed to extract page content: ' + contentResult.error);
     }
-    
-    const memoryReader = new MemoryEnhancedReading({
-      mem0ApiKey: mem0ApiKey,
-      geminiApiKey: geminiApiKey,
-      geminiModel: state.config.geminiModel,
-      userId: CONSTANTS.USER_ID,
-      debug: state.config.debug,
-      maxMemories: state.config.maxMemories,
-      relevanceThreshold: state.config.relevanceThreshold
-    });
-    
+
     const pageUrl = window.location.href;
-    return await memoryReader.addPageToMemory(contentResult.content, pageUrl);
+    const opts = force ? { force: true } : {};
     
+    const result = await memoryManager.addPageToMemory(contentResult.content, pageUrl, opts);
+    
+    return result;
   } catch (error) {
     console.error('❌ Error in addPageToMemory:', error);
-    return {
-      success: false,
-      processed: false,
-      error: error.message
+    
+    // Provide more specific error messages
+    let userFriendlyMessage = error.message;
+    if (error.message.includes('not available')) {
+      userFriendlyMessage = 'Extension not properly loaded. Please refresh the page and try again.';
+    } else if (error.message.includes('Failed to fetch')) {
+      userFriendlyMessage = 'Network error. Please check your internet connection and API keys.';
+    } else if (error.message.includes('API key')) {
+      userFriendlyMessage = 'Invalid API key. Please check your settings.';
+    }
+    
+    return { 
+      success: false, 
+      processed: false, 
+      error: userFriendlyMessage,
+      debugInfo: {
+        originalError: error.message,
+        timestamp: new Date().toISOString()
+      }
     };
   }
 }
@@ -715,6 +732,31 @@ function restoreOriginalContent() {
 // INITIALIZATION
 // =============================================================================
 
-initializeContentScript();
+// Simple debug function for troubleshooting if needed
+window.readSmartDebug = function() {
+  console.log('🔍 Read Smart Extension Status:');
+  console.log('- Content script loaded:', typeof window.readSmartInitialized !== 'undefined');
+  console.log('- Memory manager available:', typeof memoryManager !== 'undefined' && !!memoryManager);
+  console.log('- Config manager available:', typeof configManager !== 'undefined' && !!configManager);
+  
+  if (typeof memoryManager !== 'undefined' && memoryManager && typeof memoryManager.getDebugInfo === 'function') {
+    const debugInfo = memoryManager.getDebugInfo();
+    console.log('- Memory manager initialized:', debugInfo.initialized);
+    console.log('- Has reader instance:', debugInfo.hasReader);
+    if (debugInfo.initError) {
+      console.log('- Initialization error:', debugInfo.initError);
+    }
+  }
+  
+  if (typeof configManager !== 'undefined' && configManager) {
+    const config = configManager.get();
+    console.log('- API keys configured:', {
+      gemini: !!config.geminiApiKey,
+      mem0: !!config.mem0ApiKey
+    });
+  }
+};
+
+(async () => { await initializeContentScript(); })();
 
 } // End of readSmartInitialized check
