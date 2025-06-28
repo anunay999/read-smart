@@ -10,6 +10,11 @@ if (typeof global.chrome === 'undefined') {
         get: jest.fn((keys, cb) => cb({})),
         set: jest.fn((items, cb) => cb && cb()),
       },
+      local: {
+        get: jest.fn((keys, cb) => cb({})),
+        set: jest.fn((items, cb) => cb && cb()),
+        remove: jest.fn((keys, cb) => cb && cb()),
+      },
     },
     runtime: {
       sendMessage: jest.fn(),
