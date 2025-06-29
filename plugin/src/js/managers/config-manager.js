@@ -10,7 +10,7 @@
     mem0ApiKey: '',
     geminiModel: 'gemini-2.5-flash',
     systemPrompt: '',
-    relevanceThreshold: 0.5,
+    relevanceThreshold: 0.3,
     maxMemories: 6,
     enableDeduplication: true,
     maxDuplicationCacheSize: 1000,
@@ -25,7 +25,11 @@
       this.initialized = false;
     }
     async initialize(){
-      const stored = await storageManager.get(Object.keys(DEFAULT_CONFIG));
+      const raw = await storageManager.get(Object.keys(DEFAULT_CONFIG));
+      // Remove undefined/null so defaults survive when user hasn't saved anything
+      const stored = Object.fromEntries(
+        Object.entries(raw).filter(([_, v]) => v !== undefined && v !== null)
+      );
       this.config = { ...DEFAULT_CONFIG, ...stored };
       this.initialized = true;
       await eventManager.emit('config:initialized', this.config);
@@ -48,20 +52,35 @@
       await eventManager.emit('config:updated', updatedData);
     }
     getFeatureConfig(feature){
-      const cfg = this.config;
+      const c = key => (this.config[key] ?? DEFAULT_CONFIG[key]);
+
       if (feature === 'memory') {
-        const { mem0ApiKey, geminiApiKey, geminiModel, maxMemories, relevanceThreshold, debugMode } = cfg;
-        return { mem0ApiKey, geminiApiKey, geminiModel, maxMemories, relevanceThreshold, debug: debugMode };
+        return {
+          mem0ApiKey: c('mem0ApiKey'),
+          geminiApiKey: c('geminiApiKey'),
+          geminiModel: c('geminiModel'),
+          maxMemories: c('maxMemories'),
+          relevanceThreshold: c('relevanceThreshold'),
+          debug: c('debugMode')
+        };
       }
       if (feature === 'deduplication') {
-        const { enableDeduplication, maxDuplicationCacheSize, allowDuplicateAfterDays, debugDeduplication } = cfg;
-        return { enableDeduplication, maxCacheSize: maxDuplicationCacheSize, allowDuplicateAfterDays, debug: debugDeduplication };
+        return {
+          enableDeduplication: c('enableDeduplication'),
+          maxCacheSize: c('maxDuplicationCacheSize'),
+          allowDuplicateAfterDays: c('allowDuplicateAfterDays'),
+          debug: c('debugDeduplication')
+        };
       }
       if (feature === 'ai') {
-        const { geminiApiKey, geminiModel, systemPrompt, debugMode } = cfg;
-        return { geminiApiKey, geminiModel, systemPrompt, debug: debugMode };
+        return {
+          geminiApiKey: c('geminiApiKey'),
+          geminiModel: c('geminiModel'),
+          systemPrompt: c('systemPrompt'),
+          debug: c('debugMode')
+        };
       }
-      return { ...cfg };
+      return { ...this.config };
     }
   }
 

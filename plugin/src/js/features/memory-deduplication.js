@@ -110,7 +110,46 @@
       await storageManager.setLocal(urlKey,  entry);
       await storageManager.setLocal(hashKey, entry);
 
-      // TODO: optional size trimming based on this.cacheSize
+      // Enforce maximum cache size if configured
+      if (this.cacheSize && this.cacheSize > 0) {
+        await this._trimCache();
+      }
+
+      // cache trimming handled in _trimCache()
+    }
+
+    /**
+     * Trim duplicate cache to respect `this.cacheSize` (LRU strategy).
+     * This will iterate over content-hash keys (cnt_*) ordered by `processedAt`
+     * and remove the oldest records once the limit is exceeded. URL keys
+     * associated with the removed entries are also cleaned up to keep both
+     * indices consistent.
+     */
+    async _trimCache(){
+      const all = await storageManager.getLocalByPattern(this.cachePrefix);
+      const entries = Object.entries(all)
+        .filter(([k,v]) => k.startsWith(this.cachePrefix + 'cnt_') && v && v.processedAt)
+        .sort((a,b) => a[1].processedAt - b[1].processedAt); // oldest first
+
+      if (entries.length <= this.cacheSize) return; // within limit
+
+      const excess = entries.length - this.cacheSize;
+      const keysToRemove = [];
+
+      for (let i = 0; i < excess; i++) {
+        const [cntKey, entry] = entries[i];
+        keysToRemove.push(cntKey);
+        // also remove corresponding URL key
+        if (entry && entry.pageUrl) {
+          const normUrl = this._normalizeUrl(entry.pageUrl);
+          keysToRemove.push(this.cachePrefix + 'url_' + normUrl);
+        }
+      }
+
+      if (keysToRemove.length) {
+        console.log('🧹 Trimming duplicate cache, removing', keysToRemove.length, 'keys');
+        await storageManager.removeLocal(keysToRemove);
+      }
     }
   }
 

@@ -14,13 +14,19 @@ class MemoryEnhancedReading {
         // Static / constant parts
         this.baseUrl = 'https://api.mem0.ai/v1';
 
-        // Dynamically applied configuration
+        // 1. Apply internal sensible defaults
         this.applyConfig({
-            maxMemories: 10,          // sensible defaults so undefined fields still exist
+            maxMemories: 6,
             relevanceThreshold: 0.3,
-            geminiModel: 'gemini-2.5-flash',
-            ...config
+            geminiModel: 'gemini-2.5-flash'
         });
+
+        // 2. Overlay with values provided by ConfigManager (if any)
+        //    Using a second call ensures that undefined / null values
+        //    do NOT clobber the defaults set above.
+        if (config && Object.keys(config).length > 0) {
+            this.applyConfig(config);
+        }
     }
 
     /**
@@ -97,6 +103,42 @@ class MemoryEnhancedReading {
 
         const response = await this.makeApiCall(this.geminiUrl, options);
         return response.candidates[0].content.parts[0].text;
+    }
+
+    async generateWithGeminiFallback(userPrompt, text) {
+        const systemPrompt = `
+            You are ReadSmart Rephraser.
+
+            TASK
+            Rephrase the SOURCE text so it is:
+            1. Clear, concise and engaging.
+            2. Easy to scan (short paragraphs, active voice).
+            3. Faithful to the original meaning and all key facts.
+
+            GUIDELINES
+            • Preserve headings, lists, links and code blocks where present.
+            • Do NOT add commentary, personal opinions or new information.
+            • Do NOT mention these instructions.
+
+            OUTPUT FORMAT
+            Return ONLY the rephrased text as valid Markdown (no code fences or extra text).
+        `;
+
+        const promptBase = userPrompt && userPrompt.trim().length > 0 ? userPrompt : systemPrompt;
+     
+        const prompt = `
+            ${promptBase}
+
+            SOURCE
+            """
+            ${text}
+            """
+        `;
+
+        const fallbackPrompt = prompt;
+
+        const response = await this.generateWithGemini(fallbackPrompt);
+        return response;
     }
 
     /**
@@ -228,6 +270,8 @@ class MemoryEnhancedReading {
             const allRelevantMemories = [];
             const seenMemoryIds = new Set();
 
+            console.log('Searching for memories with relevance threshold:', this.relevanceThreshold);
+
             // Search for memories related to each topic
             for (const topic of topics) {
                 try {
@@ -245,6 +289,8 @@ class MemoryEnhancedReading {
                     continue;
                 }
             }
+
+            console.log('Max memories:', this.maxMemories);
 
             // Sort by relevance score and limit results
             console.log('All relevant memories:', allRelevantMemories);

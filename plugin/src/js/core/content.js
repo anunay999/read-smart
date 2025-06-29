@@ -615,7 +615,7 @@ async function tryRephraseWithMemories(article) {
     // Check if memoryManager is properly initialized
     if (!memoryManager || !memoryManager.reader) {
       console.error('Memory manager not properly initialized, falling back to Gemini');
-      return await rephraseWithGemini(article.textContent);
+      return await rephraseWithGeminiFallback(article.textContent);
     }
 
     const result = await memoryManager.rephraseWithUserMemories(article.textContent);
@@ -628,10 +628,10 @@ async function tryRephraseWithMemories(article) {
   }
 
   console.log('Using fallback Gemini rephrasing');
-  return await rephraseWithGemini(article.textContent);
+  return await rephraseWithGeminiFallback(article.textContent);
 }
 
-async function rephraseWithGemini(text) {
+async function rephraseWithGeminiFallback(text) {
   if (!state.geminiApiKey) {
     throw new Error('Gemini API key not set. Please set it in the extension settings.');
   }
@@ -641,12 +641,9 @@ async function rephraseWithGemini(text) {
     throw new Error('Memory manager not properly initialized. Cannot access Gemini functionality.');
   }
 
-  const promptBase = state.config.systemPrompt && state.config.systemPrompt.trim().length > 0
-    ? state.config.systemPrompt.trim()
-    : 'Please rephrase the following text in a clear, engaging, and easy-to-read style while maintaining the original meaning and key information. Render in Markdown format:';
-  const prompt = `${promptBase}\n\n---\n\n${text}`;
+  const userPrompt = state.config?.systemPrompt?.trim() || null;
 
-  return await memoryManager.reader.generateWithGemini(prompt);
+  return await memoryManager.reader.generateWithGeminiFallback(userPrompt, text);
 }
 
 
