@@ -27,61 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const geminiModelSelect       = document.getElementById('geminiModelSelect');
   // END: Advanced configuration elements
   
-  // Progress overlay constants / helpers
-  const PROGRESS_ID = 'read-smart-progress-overlay';
-  const PROGRESS_CONTENT_ID = 'read-smart-progress-content';
-
-  let progressSteps = [];
-
-  function showProgressOverlay(steps) {
-    const container = document.getElementById(PROGRESS_ID);
-    const contentEl = document.getElementById(PROGRESS_CONTENT_ID);
-    if (!container || !contentEl) return;
-
-    progressSteps = steps;
-    container.classList.remove('hidden');
-
-    // Clear previous
-    contentEl.innerHTML = '';
-
-    steps.forEach((s, idx) => {
-      const step = document.createElement('div');
-      step.className = 'rs-step' + (idx === 0 ? ' current' : '');
-      step.id = `rs-step-${idx}`;
-
-      const circle = document.createElement('div');
-      circle.className = 'rs-step-circle';
-      step.appendChild(circle);
-
-      const label = document.createElement('div');
-      label.textContent = s;
-      step.appendChild(label);
-
-      contentEl.appendChild(step);
-    });
-
-    // Hide status banner while overlay is visible
-    if (statusText) statusText.style.display = 'none';
-  }
-
-  function markProgressStep(idx) {
-    const step = document.getElementById(`rs-step-${idx}`);
-    if (step) {
-      step.classList.remove('current');
-      step.classList.add('completed');
-      const circle = step.querySelector('.rs-step-circle');
-      if (circle) circle.textContent = '✓';
-    }
-    const next = document.getElementById(`rs-step-${idx + 1}`);
-    if (next) next.classList.add('current');
-  }
-
-  function hideProgressOverlay() {
-    const container = document.getElementById(PROGRESS_ID);
-    if (container) container.classList.add('hidden');
-    if (statusText) statusText.style.display = '';
-  }
-
   // Duplicate modal elements
   const duplicateModal = document.getElementById('duplicateModal');
   const closeDuplicateModal = document.getElementById('closeDuplicateModal');
@@ -217,8 +162,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentMode = readerModeToggle.checked ? 'Smart reading mode active' : 'Normal reading mode';
     statusText.textContent = currentMode;
     statusText.className = readerModeToggle.checked ? 'status active' : 'status';
-    // Ensure progress is hidden
-    hideProgress();
   }
 
   // Save API configuration
@@ -310,20 +253,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Initialize Memory-Enhanced Reading Library
-  function initializeMemoryReader(geminiKey, mem0Key) {
-    return new MemoryEnhancedReading({
-      mem0ApiKey: mem0Key,
-      geminiApiKey: geminiKey,
-      userId: "chrome_extension_user",
-      debug: true
-    });
-  }
 
   // Add current page to memory using Memory-Enhanced Reading Library
   async function addCurrentPageToMemory(force = false) {
-    const steps = ['Preparing page', 'Uploading to Mem0', 'Done'];
-    startProgress(steps);
     try {
       // Check if API keys are configured
       const storage = await chrome.storage.sync.get([STORAGE_KEYS.GEMINI_API_KEY, STORAGE_KEYS.MEM0_API_KEY]);
@@ -354,11 +286,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // First, inject content script if needed
       try {
         await injectScripts(tab.id);
-        // Mark preparation done once scripts are injected/verified
-        completeProgressStep(0, steps.length);
       } catch (scriptError) {
         // Content script might already be injected or injection failed
-        completeProgressStep(0, steps.length); // still mark step done
+        // still mark step done
       }
       
       // Send message to content script to add page to memory
@@ -372,14 +302,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (result.duplicate) {
         memoryButton.textContent = 'Add to Memory';
         memoryButton.disabled = false;
-        hideProgress();
         showDuplicateModal(tab.id);
       } else if (result.success && result.processed) {
         // Show success
         memoryButton.textContent = 'Add to Memory';
         memoryButton.disabled = false;
-        // Upload finished
-        completeProgressStep(1, steps.length);
         
         statusText.textContent = `Memory added! (${result.snippetsCount} snippets)`;
         statusText.className = 'status active';
@@ -388,8 +315,6 @@ document.addEventListener('DOMContentLoaded', () => {
           const currentMode = readerModeToggle.checked ? 'Smart reading mode active' : 'Normal reading mode';
           statusText.textContent = currentMode;
           statusText.className = readerModeToggle.checked ? 'status active' : 'status';
-          // Hide after completing final step
-          setTimeout(() => hideProgress(), 1200);
         }, 300);
       } else {
         throw new Error(result.error || 'Failed to add page to memory');
@@ -467,8 +392,6 @@ document.addEventListener('DOMContentLoaded', () => {
           alert('Failed to add memory. Error: ' + error.message + '\n\nPlease check your API keys and try again.');
         }, 100);
       }
-      
-      hideProgress();
     }
   }
 
@@ -588,8 +511,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Enable smart rephrase
   async function enableSmartRephrase() {
-    const steps = ['Preparing page', 'Generating with memory', 'Done'];
-    startProgress(steps);
     try {
       const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
       if (!tab) return;
@@ -603,13 +524,11 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Please configure both Gemini and Mem0 API keys for Smart Rephrase');
         rephraseToggle.checked = false;
         showConfigModal();
-        hideProgress();
         return;
       }
 
       // Inject required scripts
       await injectScripts(tab.id);
-      completeProgressStep(0, steps.length);
       
       statusText.textContent = 'Generating with memory...';
       statusText.className = 'status active';
@@ -624,13 +543,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (response && response.success) {
         statusText.textContent = 'Smart rephrase active';
         statusText.className = 'status active';
-        completeProgressStep(1, steps.length);
-
-        setTimeout(() => {
-          completeProgressStep(2, steps.length);
-        }, 300);
-
-        setTimeout(() => hideProgress(), 1500);
       } else {
         const errorMessage = response?.error || 'Failed to enable smart rephrase';
         console.error('Smart rephrase error:', errorMessage);
@@ -652,12 +564,6 @@ document.addEventListener('DOMContentLoaded', () => {
       
       statusText.textContent = errorMessage;
       statusText.className = 'status';
-      hideProgress();
-      
-      // Show alert for serious errors
-      if (error.message.includes('not properly initialized')) {
-        alert('Smart rephrase failed to initialize. Please refresh the page and try again.');
-      }
     }
   }
 
@@ -756,19 +662,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Open Mem0 dashboard
   function openDashboard() {
     chrome.tabs.create({ url: 'https://app.mem0.ai/dashboard' });
-  }
-
-  // Helper: initialize progress steps using overlay
-  function startProgress(steps) {
-    showProgressOverlay(steps);
-  }
-
-  function completeProgressStep(idx /*, totalSteps ignored */) {
-    markProgressStep(idx);
-  }
-
-  function hideProgress() {
-    hideProgressOverlay();
   }
 
   // Initialize the popup
