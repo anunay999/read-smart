@@ -59,7 +59,9 @@
           "src/css/styles.css",
           "src/css/skeleton.css",
           "src/css/popup.css",
+          "src/css/progress-overlay.css",
           "src/html/skeleton.html",
+          "src/html/progress-overlay.html",
           "src/html/reader.html"
         ],
         "matches": ["<all_urls>"]

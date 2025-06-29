@@ -15,6 +15,15 @@
       this.reader = null; 
       this.initialized = false;
       this.initError = null;
+
+      // React to configuration changes (guarded for test stubs)
+      if (eventManager && typeof eventManager.on === 'function') {
+        eventManager.on('config:updated', ({ data }) => {
+          if (this.reader && typeof this.reader.applyConfig === 'function') {
+            this.reader.applyConfig(data);
+          }
+        });
+      }
     }
     
     async initialize(){

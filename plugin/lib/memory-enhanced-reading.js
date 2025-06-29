@@ -10,19 +10,36 @@ if (typeof window !== 'undefined' && window.MemoryEnhancedReading) {
  */
 
 class MemoryEnhancedReading {
-    constructor(config) {
-        this.mem0ApiKey = config.mem0ApiKey;
-        this.geminiApiKey = config.geminiApiKey;
-        this.geminiModel = config.geminiModel || 'gemini-2.5-flash';
-        this.userId = config.userId;
+    constructor(config = {}) {
+        // Static / constant parts
         this.baseUrl = 'https://api.mem0.ai/v1';
-        this.geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
 
-        // Configuration
-        this.maxMemories = config.maxMemories || 10;
-        this.relevanceThreshold = config.relevanceThreshold || 0.3;
+        // Dynamically applied configuration
+        this.applyConfig({
+            maxMemories: 10,          // sensible defaults so undefined fields still exist
+            relevanceThreshold: 0.3,
+            geminiModel: 'gemini-2.5-flash',
+            ...config
+        });
     }
 
+    /**
+     * Apply (or re-apply) configuration values. Can be called at runtime to
+     * refresh API keys, model choice, thresholds, etc.
+     */
+    applyConfig(cfg = {}) {
+        if (typeof cfg.mem0ApiKey !== 'undefined') this.mem0ApiKey = cfg.mem0ApiKey;
+        if (typeof cfg.geminiApiKey !== 'undefined') this.geminiApiKey = cfg.geminiApiKey;
+        if (typeof cfg.userId !== 'undefined') this.userId = cfg.userId;
+
+        if (typeof cfg.geminiModel !== 'undefined') {
+            this.geminiModel = cfg.geminiModel;
+            this.geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
+        }
+
+        if (typeof cfg.maxMemories !== 'undefined') this.maxMemories = cfg.maxMemories;
+        if (typeof cfg.relevanceThreshold !== 'undefined') this.relevanceThreshold = cfg.relevanceThreshold;
+    }
 
     /**
      * Make API calls with error handling

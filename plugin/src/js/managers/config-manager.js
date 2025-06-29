@@ -35,14 +35,17 @@
       return this.config[key];
     }
     async set(key, value){
+      let updatedData;
       if (typeof key === 'object') {
         Object.assign(this.config, key);
         await storageManager.set(key);
+        updatedData = { ...key };
       } else {
         this.config[key] = value;
         await storageManager.set({ [key]: value });
+        updatedData = { [key]: value };
       }
-      await eventManager.emit('config:updated', { [key]: value });
+      await eventManager.emit('config:updated', updatedData);
     }
     getFeatureConfig(feature){
       const cfg = this.config;

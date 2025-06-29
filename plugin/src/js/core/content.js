@@ -29,6 +29,10 @@ const SELECTORS = {
   ]
 };
 
+// Progress-overlay constants
+const PROGRESS_ID = 'read-smart-progress-overlay';
+let progressOverlayLoaded = false;
+
 // =============================================================================
 // STATE MANAGEMENT
 // =============================================================================
@@ -146,7 +150,11 @@ const messageHandlers = {
 
   updateApiKeys: (request) => {
     state.geminiApiKey = request.geminiApiKey;
-    configManager.set('geminiApiKey', request.geminiApiKey);
+    configManager.set({
+      geminiApiKey: request.geminiApiKey,
+      mem0ApiKey: request.mem0ApiKey ?? configManager.get('mem0ApiKey')
+    });
+
     return { success: true };
   },
 
@@ -226,6 +234,8 @@ async function enablePlainReaderMode() {
 
 async function enableSmartRephraseMode() {
   try {
+    const steps = ['Preparing page', 'Generating with memory', 'Done'];
+    await showProgressOverlay(steps);
     const pageUrl = window.location.href;
 
     // Attempt to serve from in-memory L1 cache first
@@ -242,6 +252,10 @@ async function enableSmartRephraseMode() {
 
         state.setSmartRephraseMode(true);
         state.rephrasedContent = cached.markdown;
+        completeProgressStep(0);
+        completeProgressStep(1);
+        completeProgressStep(2);
+        setTimeout(hideProgressOverlay, 1500);
         return; // Short-circuit – we're done.
       }
     }
@@ -251,6 +265,7 @@ async function enableSmartRephraseMode() {
     
     // Show skeleton loading
     await showSkeletonOverlay();
+    completeProgressStep(0);
     
     // Ensure minimum display time for skeleton
     const minDisplayTime = new Promise(resolve => 
@@ -276,6 +291,7 @@ async function enableSmartRephraseMode() {
     }
   } catch (error) {
     cleanupOverlays();
+    hideProgressOverlay();
     console.error('Error in enableSmartRephraseMode:', error);
     throw error;
   }
@@ -283,12 +299,14 @@ async function enableSmartRephraseMode() {
 
 function disableReaderMode() {
   cleanupOverlays();
+  hideProgressOverlay();
   restoreOriginalContent();
   state.reset();
 }
 
 function disableSmartRephrase() {
   cleanupOverlays();
+  hideProgressOverlay();
   restoreOriginalContent();
   state.reset();
 }
@@ -348,6 +366,7 @@ async function extractPageContentForMemory() {
         url: window.location.href
       });
       
+      completeProgressStep(0);
       return {
         success: true,
         content: extractedContent,
@@ -372,6 +391,7 @@ async function extractPageContentForMemory() {
       url: window.location.href
     });
     
+    completeProgressStep(0);
     return {
       success: true,
       content: content,
@@ -502,6 +522,12 @@ async function showSkeletonOverlay() {
   
   document.body.appendChild(state.overlay);
   
+  // Ensure progress overlay stays on top
+  const prog = document.getElementById(PROGRESS_ID);
+  if (prog) {
+    document.body.appendChild(prog);
+  }
+  
   // Force reflow
   state.overlay.offsetHeight;
   
@@ -626,6 +652,8 @@ async function rephraseWithGemini(text) {
 
 async function addPageToMemory(force = false) {
   try {
+    const steps = ['Preparing page', 'Uploading content', 'Done'];
+    await showProgressOverlay(steps);
     // Check if memoryManager is properly initialized
     if (typeof memoryManager === 'undefined' || memoryManager === null) {
       throw new Error('Memory manager not available. Please refresh the page and try again.');
@@ -646,8 +674,17 @@ async function addPageToMemory(force = false) {
     
     const result = await memoryManager.addPageToMemory(contentResult.content, pageUrl, opts);
     
+    if (result.success && result.processed) {
+      completeProgressStep(1);
+      completeProgressStep(2);
+      setTimeout(hideProgressOverlay, 1500);
+    } else {
+      hideProgressOverlay();
+    }
+
     return result;
   } catch (error) {
+    hideProgressOverlay();
     console.error('❌ Error in addPageToMemory:', error);
     
     // Provide more specific error messages
@@ -684,6 +721,11 @@ async function transitionFromSkeletonToContent(article, rephrasedContent) {
     title: article.title,
     content: rephrasedContent
   }, true);
+  completeProgressStep(1);
+  setTimeout(() => {
+    completeProgressStep(2);
+    hideProgressOverlay();
+  }, 1500);
 }
 
 function cleanupOverlays() {
@@ -706,7 +748,7 @@ function removeOverlay() {
 
 function hideDOMExceptOverlay() {
   Array.from(document.body.children).forEach(child => {
-    if (child.id !== CONSTANTS.OVERLAY_ID) {
+    if (child.id !== CONSTANTS.OVERLAY_ID && child.id !== PROGRESS_ID) {
       child.style.display = 'none';
     }
   });
@@ -716,10 +758,83 @@ function hideDOMExceptOverlay() {
 
 function restoreOriginalContent() {
   Array.from(document.body.children).forEach(child => {
-    if (child.id !== CONSTANTS.OVERLAY_ID) {
+    if (child.id !== CONSTANTS.OVERLAY_ID && child.id !== PROGRESS_ID) {
       child.style.display = '';
     }
   });
+}
+
+// =============================================================================
+// PROGRESS OVERLAY HELPERS
+// =============================================================================
+
+async function ensureProgressAssets() {
+  if (progressOverlayLoaded) return;
+
+  // Inject stylesheet once
+  const cssHref = chrome.runtime.getURL('src/css/progress-overlay.css');
+  if (!document.querySelector(`link[href="${cssHref}"]`)) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = cssHref;
+    document.head.appendChild(link);
+  }
+
+  // Inject HTML template once
+  const res = await fetch(chrome.runtime.getURL('src/html/progress-overlay.html'));
+  const html = await res.text();
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+  document.body.appendChild(temp.firstElementChild);
+
+  progressOverlayLoaded = true;
+}
+
+let progressSteps = [];
+async function showProgressOverlay(steps) {
+  await ensureProgressAssets();
+  progressSteps = steps;
+
+  const container = document.getElementById(PROGRESS_ID);
+  if (!container) return;
+  container.classList.remove('hidden');
+
+  const contentEl = document.getElementById('read-smart-progress-content');
+  if (!contentEl) return;
+  contentEl.innerHTML = '';
+
+  steps.forEach((s, idx) => {
+    const step = document.createElement('div');
+    step.className = 'rs-step' + (idx === 0 ? ' current' : '');
+    step.id = `rs-step-${idx}`;
+
+    const circle = document.createElement('div');
+    circle.className = 'rs-step-circle';
+    step.appendChild(circle);
+
+    const label = document.createElement('div');
+    label.textContent = s;
+    step.appendChild(label);
+
+    contentEl.appendChild(step);
+  });
+}
+
+function completeProgressStep(idx) {
+  const step = document.getElementById(`rs-step-${idx}`);
+  if (step) {
+    step.classList.remove('current');
+    step.classList.add('completed');
+    const circle = step.querySelector('.rs-step-circle');
+    if (circle) circle.textContent = '✓';
+  }
+  const next = document.getElementById(`rs-step-${idx + 1}`);
+  if (next) next.classList.add('current');
+}
+
+function hideProgressOverlay() {
+  const container = document.getElementById(PROGRESS_ID);
+  if (container) container.classList.add('hidden');
 }
 
 // =============================================================================
