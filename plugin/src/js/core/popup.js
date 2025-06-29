@@ -403,9 +403,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   closeDuplicateModal.addEventListener('click', hideDuplicateModal);
   cancelDuplicate.addEventListener('click', hideDuplicateModal);
-  forceAddButton.addEventListener('click', async () => {
+  // "Add Anyway" should trigger upload and close the modal right away
+  forceAddButton.addEventListener('click', () => {
     if (pendingTabId) {
-      await addCurrentPageToMemory(true);
+      // Fire and forget – we don't await so the modal closes immediately
+      addCurrentPageToMemory(true);
     }
     hideDuplicateModal();
   });
