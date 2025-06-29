@@ -27,9 +27,60 @@ document.addEventListener('DOMContentLoaded', () => {
   const geminiModelSelect       = document.getElementById('geminiModelSelect');
   // END: Advanced configuration elements
   
-  // Progress indicator elements
-  const progressContainer = document.getElementById('progressContainer');
-  const progressStepsWrapper = document.getElementById('progressSteps');
+  // Progress overlay constants / helpers
+  const PROGRESS_ID = 'read-smart-progress-overlay';
+  const PROGRESS_CONTENT_ID = 'read-smart-progress-content';
+
+  let progressSteps = [];
+
+  function showProgressOverlay(steps) {
+    const container = document.getElementById(PROGRESS_ID);
+    const contentEl = document.getElementById(PROGRESS_CONTENT_ID);
+    if (!container || !contentEl) return;
+
+    progressSteps = steps;
+    container.classList.remove('hidden');
+
+    // Clear previous
+    contentEl.innerHTML = '';
+
+    steps.forEach((s, idx) => {
+      const step = document.createElement('div');
+      step.className = 'rs-step' + (idx === 0 ? ' current' : '');
+      step.id = `rs-step-${idx}`;
+
+      const circle = document.createElement('div');
+      circle.className = 'rs-step-circle';
+      step.appendChild(circle);
+
+      const label = document.createElement('div');
+      label.textContent = s;
+      step.appendChild(label);
+
+      contentEl.appendChild(step);
+    });
+
+    // Hide status banner while overlay is visible
+    if (statusText) statusText.style.display = 'none';
+  }
+
+  function markProgressStep(idx) {
+    const step = document.getElementById(`rs-step-${idx}`);
+    if (step) {
+      step.classList.remove('current');
+      step.classList.add('completed');
+      const circle = step.querySelector('.rs-step-circle');
+      if (circle) circle.textContent = '✓';
+    }
+    const next = document.getElementById(`rs-step-${idx + 1}`);
+    if (next) next.classList.add('current');
+  }
+
+  function hideProgressOverlay() {
+    const container = document.getElementById(PROGRESS_ID);
+    if (container) container.classList.add('hidden');
+    if (statusText) statusText.style.display = '';
+  }
 
   // Duplicate modal elements
   const duplicateModal = document.getElementById('duplicateModal');
@@ -707,62 +758,17 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.tabs.create({ url: 'https://app.mem0.ai/dashboard' });
   }
 
-  // Helper: initialize progress steps
+  // Helper: initialize progress steps using overlay
   function startProgress(steps) {
-    if (!progressStepsWrapper) return;
-
-    progressStepsWrapper.innerHTML = '';
-
-    steps.forEach((step, idx) => {
-      // Step element
-      const stepEl = document.createElement('div');
-      stepEl.className = 'progress-step';
-      stepEl.id = `progress-step-${idx}`;
-
-      // Circle
-      const circle = document.createElement('div');
-      circle.className = 'circle';
-      circle.id = `progress-circle-${idx}`;
-      circle.textContent = '';
-      stepEl.appendChild(circle);
-
-      // Label
-      const label = document.createElement('div');
-      label.className = 'label';
-      label.textContent = step;
-      stepEl.appendChild(label);
-
-      progressStepsWrapper.appendChild(stepEl);
-    });
-
-    // Mark first as current
-    const firstStep = document.getElementById('progress-step-0');
-    if (firstStep) firstStep.classList.add('current');
-
-    if (progressContainer) progressContainer.style.display = 'block';
-    if (statusText) statusText.style.display = 'none';
+    showProgressOverlay(steps);
   }
 
-  function completeProgressStep(idx, totalSteps) {
-    const stepEl = document.getElementById(`progress-step-${idx}`);
-    const circleEl = document.getElementById(`progress-circle-${idx}`);
-    if (stepEl && circleEl) {
-      stepEl.classList.remove('current');
-      stepEl.classList.add('completed');
-      circleEl.textContent = '✓';
-    }
-
-    const nextIdx = idx + 1;
-    if (nextIdx < totalSteps) {
-      const nextStep = document.getElementById(`progress-step-${nextIdx}`);
-      if (nextStep) nextStep.classList.add('current');
-    }
+  function completeProgressStep(idx /*, totalSteps ignored */) {
+    markProgressStep(idx);
   }
 
   function hideProgress() {
-    if (progressContainer) progressContainer.style.display = 'none';
-    if (progressStepsWrapper) progressStepsWrapper.innerHTML = '';
-    if (statusText) statusText.style.display = '';
+    hideProgressOverlay();
   }
 
   // Initialize the popup
