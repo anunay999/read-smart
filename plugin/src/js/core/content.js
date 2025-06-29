@@ -146,7 +146,11 @@ const messageHandlers = {
 
   updateApiKeys: (request) => {
     state.geminiApiKey = request.geminiApiKey;
-    configManager.set('geminiApiKey', request.geminiApiKey);
+    configManager.set({
+      geminiApiKey: request.geminiApiKey,
+      mem0ApiKey: request.mem0ApiKey ?? configManager.get('mem0ApiKey')
+    });
+
     return { success: true };
   },
 
