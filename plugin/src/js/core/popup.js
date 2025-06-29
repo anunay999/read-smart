@@ -481,10 +481,10 @@ document.addEventListener('DOMContentLoaded', () => {
   closeDuplicateModal.addEventListener('click', hideDuplicateModal);
   cancelDuplicate.addEventListener('click', hideDuplicateModal);
   forceAddButton.addEventListener('click', async () => {
-    hideDuplicateModal();
     if (pendingTabId) {
       await addCurrentPageToMemory(true);
     }
+    hideDuplicateModal();
   });
   duplicateModal.addEventListener('click', (e) => {
     if (e.target === duplicateModal) hideDuplicateModal();
