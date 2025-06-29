@@ -26,6 +26,17 @@
         chrome.storage.local.set({ [key]: value }, () => resolve());
       });
     }
+    /**
+     * Remove one or multiple keys from `chrome.storage.local`.
+     * Accepts a single string key or an array of keys.
+     */
+    async removeLocal(keys){
+      const toRemove = Array.isArray(keys) ? keys : [keys];
+      if(!toRemove.length) return;
+      return new Promise(resolve => {
+        chrome.storage.local.remove(toRemove, () => resolve());
+      });
+    }
     async getLocalByPattern(prefix){
       return new Promise(resolve => {
         chrome.storage.local.get(null, items => {
