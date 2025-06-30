@@ -3,7 +3,7 @@
   position: fixed;
   bottom: 24px;
   right: 24px;
-  z-index: 2147483650;
+  z-index: 2147483647; /* Maximum safe z-index value */
   background: rgba(30, 30, 30, 0.9);
   color: #fff;
   padding: 16px 20px;
