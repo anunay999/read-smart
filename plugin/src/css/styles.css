@@ -26,14 +26,14 @@
   --rs-border-light: rgba(255, 255, 255, 0.1);
   --rs-border-warm: #d4a574;
   
-  --rs-shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.1);
-  --rs-shadow-medium: 0 8px 25px rgba(0, 0, 0, 0.15);
-  --rs-shadow-strong: 0 12px 40px rgba(0, 0, 0, 0.2);
+  --rs-shadow-soft: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1); /* 0 4px 12px */
+  --rs-shadow-medium: 0 0.5rem 1.5625rem rgba(0, 0, 0, 0.15); /* 0 8px 25px */
+  --rs-shadow-strong: 0 0.75rem 2.5rem rgba(0, 0, 0, 0.2); /* 0 12px 40px */
   
-  --rs-radius-sm: 6px;
-  --rs-radius-md: 12px;
-  --rs-radius-lg: 16px;
-  --rs-radius-xl: 20px;
+  --rs-radius-sm: 0.375rem; /* 6px */
+  --rs-radius-md: 0.75rem; /* 12px */
+  --rs-radius-lg: 1rem; /* 16px */
+  --rs-radius-xl: 1.25rem; /* 20px */
   
   --rs-transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   --rs-transition-medium: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -71,7 +71,7 @@
 @keyframes rs-fade-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(0.625rem); /* 10px */
   }
   to {
     opacity: 1;
@@ -82,7 +82,7 @@
 @keyframes rs-slide-in {
   from {
     opacity: 0;
-    transform: translateX(-20px);
+    transform: translateX(-1.25rem); /* -20px */
   }
   to {
     opacity: 1;
@@ -92,10 +92,10 @@
 
 @keyframes rs-pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 5px rgba(124, 58, 237, 0.2);
+    box-shadow: 0 0 0.3125rem rgba(124, 58, 237, 0.2); /* 0 0 5px */
   }
   50% {
-    box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+    box-shadow: 0 0 1.25rem rgba(124, 58, 237, 0.4); /* 0 0 20px */
   }
 }
 
@@ -145,12 +145,12 @@
 }
 
 .rs-interactive:hover {
-  transform: translateY(-2px);
+  transform: translateY(-0.125rem); /* -2px */
 }
 
 /* Button Variants */
 .rs-btn {
-  padding: 12px 24px;
+  padding: 0.75rem 1.5rem; /* 12px 24px */
   border-radius: var(--rs-radius-md);
   font-weight: 500;
   cursor: pointer;
@@ -169,13 +169,13 @@
 .rs-btn-primary:hover {
   background: linear-gradient(135deg, var(--rs-primary-dark), var(--rs-primary));
   box-shadow: var(--rs-shadow-medium);
-  transform: translateY(-2px);
+  transform: translateY(-0.125rem); /* -2px */
 }
 
 .rs-btn-secondary {
   background: linear-gradient(135deg, var(--rs-dark-bg-light), var(--rs-dark-bg));
   color: var(--rs-dark-text);
-  border: 1px solid var(--rs-border-light);
+  border: 0.0625rem solid var(--rs-border-light); /* 1px */
 }
 
 .rs-btn-secondary:hover {
@@ -187,15 +187,15 @@
 .rs-card {
   background: var(--rs-bg-warm);
   border-radius: var(--rs-radius-lg);
-  padding: 24px;
+  padding: 1.5rem; /* 24px */
   box-shadow: var(--rs-shadow-soft);
-  border: 1px solid var(--rs-border-warm);
+  border: 0.0625rem solid var(--rs-border-warm); /* 1px */
 }
 
 .rs-card-dark {
   background: linear-gradient(135deg, rgba(42, 42, 42, 0.8), rgba(31, 31, 31, 0.8));
-  border: 1px solid var(--rs-border-light);
-  backdrop-filter: blur(10px);
+  border: 0.0625rem solid var(--rs-border-light); /* 1px */
+  backdrop-filter: blur(0.625rem); /* 10px */
 }
 
 /* Typography Helpers */
@@ -226,8 +226,8 @@
 
 /* Focus States for Accessibility */
 .rs-focusable:focus {
-  outline: 2px solid var(--rs-primary);
-  outline-offset: 2px;
+  outline: 0.125rem solid var(--rs-primary); /* 2px */
+  outline-offset: 0.125rem; /* 2px */
 }
 
 /* Responsive Helpers */

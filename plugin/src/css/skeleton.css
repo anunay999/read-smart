@@ -20,36 +20,36 @@
 
 /* Skeleton Container */
 .skeleton-container {
-  max-width: 1000px !important;
-  width: calc(100% - 80px) !important;
-  padding: 60px !important;
+  max-width: 62.5rem !important; /* 1000px */
+  width: calc(100% - 5rem) !important; /* 80px */
+  padding: 3.75rem !important; /* 60px */
   background: linear-gradient(135deg, #f8f3eb 0%, #f4ecd8 100%) !important;
-  border-radius: 16px !important;
+  border-radius: 1rem !important; /* 16px */
   box-shadow: 
-    0 20px 40px rgba(139, 69, 19, 0.12),
-    0 8px 16px rgba(139, 69, 19, 0.08),
-    0 4px 8px rgba(139, 69, 19, 0.06) !important;
-  border: 1px solid rgba(212, 165, 116, 0.4) !important;
+    0 1.25rem 2.5rem rgba(139, 69, 19, 0.12),  /* 0 20px 40px */
+    0 0.5rem 1rem rgba(139, 69, 19, 0.08),     /* 0 8px 16px */
+    0 0.25rem 0.5rem rgba(139, 69, 19, 0.06) !important; /* 0 4px 8px */
+  border: 0.0625rem solid rgba(212, 165, 116, 0.4) !important; /* 1px */
   box-sizing: border-box !important;
 }
 
 /* Skeleton Elements */
 .skeleton-title {
-  height: 48px !important;
+  height: 3rem !important; /* 48px */
   width: 60% !important;
   background: #e0d6c3 !important;
-  border-radius: 8px !important;
-  margin-bottom: 32px !important;
+  border-radius: 0.5rem !important; /* 8px */
+  margin-bottom: 2rem !important; /* 32px */
   animation: skeletonPulse 1.5s ease-in-out infinite !important;
   display: block !important;
   box-sizing: border-box !important;
 }
 
 .skeleton-line {
-  height: 20px !important;
+  height: 1.25rem !important; /* 20px */
   background: #e0d6c3 !important;
-  border-radius: 4px !important;
-  margin-bottom: 16px !important;
+  border-radius: 0.25rem !important; /* 4px */
+  margin-bottom: 1rem !important; /* 16px */
   animation: skeletonPulse 1.5s ease-in-out infinite !important;
   display: block !important;
   box-sizing: border-box !important;
@@ -58,7 +58,7 @@
 .skeleton-line:nth-child(3) { width: 100% !important; animation-delay: 0.2s !important; }
 .skeleton-line:nth-child(4) { width: 100% !important; animation-delay: 0.4s !important; }
 .skeleton-line:nth-child(5) { width: 100% !important; animation-delay: 0.6s !important; }
-.skeleton-line:nth-child(6) { width: 80% !important; margin-bottom: 32px !important; animation-delay: 0.8s !important; }
+.skeleton-line:nth-child(6) { width: 80% !important; margin-bottom: 2rem !important; /* 32px */ animation-delay: 0.8s !important; }
 .skeleton-line:nth-child(7) { width: 100% !important; animation-delay: 1s !important; }
 
 /* Skeleton Animation */
@@ -74,42 +74,42 @@
 /* Responsive Skeleton Styles */
 @media (max-width: 1200px) {
   .skeleton-container {
-    width: calc(100% - 60px) !important;
-    padding: 50px !important;
+    width: calc(100% - 3.75rem) !important; /* 60px */
+    padding: 3.125rem !important; /* 50px */
   }
 }
 
 @media (max-width: 768px) {
   .skeleton-container {
-    width: calc(100% - 40px) !important;
-    padding: 40px !important;
+    width: calc(100% - 2.5rem) !important; /* 40px */
+    padding: 2.5rem !important; /* 40px */
   }
   
   .skeleton-title {
-    height: 40px !important;
-    margin-bottom: 24px !important;
+    height: 2.5rem !important; /* 40px */
+    margin-bottom: 1.5rem !important; /* 24px */
   }
   
   .skeleton-line {
-    height: 16px !important;
-    margin-bottom: 12px !important;
+    height: 1rem !important; /* 16px */
+    margin-bottom: 0.75rem !important; /* 12px */
   }
 }
 
 @media (max-width: 480px) {
   .skeleton-container {
-    width: calc(100% - 20px) !important;
-    padding: 30px !important;
-    border-radius: 12px !important;
+    width: calc(100% - 1.25rem) !important; /* 20px */
+    padding: 1.875rem !important; /* 30px */
+    border-radius: 0.75rem !important; /* 12px */
   }
   
   .skeleton-title {
-    height: 36px !important;
-    margin-bottom: 20px !important;
+    height: 2.25rem !important; /* 36px */
+    margin-bottom: 1.25rem !important; /* 20px */
   }
   
   .skeleton-line {
-    height: 14px !important;
-    margin-bottom: 10px !important;
+    height: 0.875rem !important; /* 14px */
+    margin-bottom: 0.625rem !important; /* 10px */
   }
 } 
