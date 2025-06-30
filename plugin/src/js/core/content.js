@@ -493,6 +493,9 @@ async function renderReaderOverlay(article, isMarkdown = false) {
   cleanupOverlays();
   hideDOMExceptOverlay();
   
+  // Add class for reader mode background
+  document.body.classList.add('read-smart-active');
+  
   state.overlay = document.createElement('div');
   state.overlay.id = CONSTANTS.OVERLAY_ID;
   state.overlay.className = `relative w-full bg-[#f4ecd8] z-[${CONSTANTS.Z_INDEX}]`;
@@ -510,6 +513,9 @@ async function showSkeletonOverlay() {
   disableReaderStyles();
   hideDOMExceptOverlay();
   injectSkeletonCSS();
+  
+  // Add class for reader mode background
+  document.body.classList.add('read-smart-active');
   
   // Small delay to ensure DOM cleanup
   await new Promise(resolve => setTimeout(resolve, CONSTANTS.TRANSITION_DELAY));
@@ -744,13 +750,38 @@ function removeOverlay() {
 }
 
 function hideDOMExceptOverlay() {
+  // Store original body styles
+  if (!window.readSmartOriginalStyles) {
+    window.readSmartOriginalStyles = {
+      body: {
+        overflow: document.body.style.overflow,
+        background: document.body.style.background,
+        backgroundColor: document.body.style.backgroundColor,
+        backgroundImage: document.body.style.backgroundImage,
+        minHeight: document.body.style.minHeight,
+        height: document.body.style.height
+      },
+      html: {
+        overflow: document.documentElement.style.overflow,
+        background: document.documentElement.style.background,
+        backgroundColor: document.documentElement.style.backgroundColor,
+        height: document.documentElement.style.height
+      }
+    };
+  }
+
   Array.from(document.body.children).forEach(child => {
     if (child.id !== CONSTANTS.OVERLAY_ID && child.id !== PROGRESS_ID) {
       child.style.display = 'none';
     }
   });
 
-  // Allow natural page scrolling; overlay will stretch with its content
+  // Ensure body and html can scroll properly
+  document.body.style.overflow = 'auto';
+  document.body.style.height = 'auto';
+  document.body.style.minHeight = '100vh';
+  document.documentElement.style.overflow = 'auto';
+  document.documentElement.style.height = 'auto';
 }
 
 function restoreOriginalContent() {
@@ -759,6 +790,31 @@ function restoreOriginalContent() {
       child.style.display = '';
     }
   });
+
+  // Remove reader mode class
+  document.body.classList.remove('read-smart-active');
+
+  // Restore original body and html styles
+  if (window.readSmartOriginalStyles) {
+    // Restore body styles
+    Object.keys(window.readSmartOriginalStyles.body).forEach(prop => {
+      document.body.style[prop] = window.readSmartOriginalStyles.body[prop];
+    });
+
+    // Restore html styles
+    Object.keys(window.readSmartOriginalStyles.html).forEach(prop => {
+      document.documentElement.style[prop] = window.readSmartOriginalStyles.html[prop];
+    });
+
+    // Clean up
+    delete window.readSmartOriginalStyles;
+  }
+
+  // Remove reader mode background styles that may have been applied
+  const readerStyles = document.getElementById(CONSTANTS.READER_STYLES_ID);
+  if (readerStyles) {
+    readerStyles.disabled = true;
+  }
 }
 
 // =============================================================================
