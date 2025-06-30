@@ -1,20 +1,19 @@
 {
     "manifest_version": 3,
-    "name": "Read Smart",
+    "name": "read smart",
     "version": "1.0",
-    "description": "Extracts main content from web pages like reader mode",
+    "description": "Your memory-aware editor that rewrites pages to skip what you know and spotlight what's new",
     "icons": {
       "16": "assets/icons/icon16.png",
       "48": "assets/icons/icon48.png",
       "128": "assets/icons/icon128.png"
     },
     "permissions": [
+      "activeTab",
       "scripting",
-      "tabs",
       "storage"
     ],
     "host_permissions": [
-      "<all_urls>",
       "https://generativelanguage.googleapis.com/*",
       "https://api.mem0.ai/*"
     ],
@@ -30,28 +29,6 @@
       "service_worker": "src/js/core/background.js",
       "type": "module"
     },
-    "content_scripts": [
-      {
-        "matches": ["<all_urls>"],
-        "js": [
-          "lib/Readability.js",
-          "lib/marked.min.js",
-          "src/js/managers/event-manager.js",
-          "src/js/managers/storage-manager.js",
-          "src/js/managers/config-manager.js",
-          "src/js/features/memory-deduplication.js",
-          "lib/memory-enhanced-reading.js",
-          "src/js/managers/memory-manager.js",
-          "src/js/cache.js",
-          "src/js/core/content.js"
-        ],
-        "css": [
-          "lib/tailwind.min.css"
-        ],
-        "run_at": "document_end",
-        "all_frames": false
-      }
-    ],
     "web_accessible_resources": [
       {
         "resources": [
