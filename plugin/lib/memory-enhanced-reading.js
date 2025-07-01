@@ -429,10 +429,11 @@ class MemoryEnhancedReading {
         4. Insert a sub-heading or bullet block at least every **120 words** within SECTION 2.  
         5. In SECTION 1:  
         • **Context Bridge** – 1-2 sentences.  
-        • **What You Already Know** – 3-7 bullets, ≤ 8 words each.  
-        • **References** – bullet list of \`[Title](URL)\` links.  
+        • **What You Already Know** – 3-5 bullets.  
+        • **References** – bullet list of \`[Title](URL)\` links. ⚠️ CRITICAL: Only include references that are DIRECTLY RELEVANT to the article's main topic. If a reference is about unrelated topics (e.g., IPOs, business advice, or general AI when the article is about Go performance), EXCLUDE IT. Better to have fewer relevant references than many irrelevant ones.
         6. No other headings, no metadata ("8 min read"), no HTML; output must be valid Markdown.  
         7. If any rule is broken, RESTART and fix before finalising.
+        8. REFERENCE RELEVANCE CHECK: Before including any reference, verify it directly relates to the article's core subject. Irrelevant references = immediate failure.
 
         STYLE HINTS  
         • Match the author's vocabulary and cadence (semi-formal tech-blog).  
@@ -449,12 +450,18 @@ class MemoryEnhancedReading {
         REMEMBER  
         – Do NOT repeat memory passages verbatim.  
         – The reader scans in a small popup; keep visuals punchy.  
-        – Comply with all HARD RULES.    
+        – Comply with all HARD RULES.
+        – References must be topically relevant or they will be considered a violation.
         You will be eliminated if you do not follow these rules.
 
         FILTERING MEMORY  
         • Ignore any memory that is not obviously related to the article's subject – better to omit than force relevance.  
         • Paraphrase memory ideas; never quote them verbatim.
+        
+        FILTERING REFERENCES
+        • Only include references that directly support or relate to the article's main topic.
+        • Example: For a Go performance article, include Go docs, benchmarking guides, compiler optimizations - NOT business books, IPO news, or general AI tools.
+        • When in doubt, exclude the reference.
         `;
         
         try {
