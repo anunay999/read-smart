@@ -185,7 +185,19 @@ class MemoryEnhancedReading {
             Psychology  → ["Cognitive Dissonance", "Positive Reinforcement", "Flow State"]
 
             SOURCE
-            ${content}`;
+            ${content}
+            
+            Return only the JSON array, no additional text not even a code block specifying json.
+            Example response:
+            
+            [
+            "<list-item-1>",
+            "<list-item-2>",
+            "<list-item-3>",
+            "<list-item-4>",
+            "<list-item-5>"
+            ]
+            `;
 
         try {
             const response = await this.generateWithGemini(prompt);
@@ -366,7 +378,18 @@ class MemoryEnhancedReading {
             ]
 
             SOURCE
-            ${content}`;
+            ${content}
+            
+            Return only the JSON array, no additional text not even a code block specifying json.
+            Example response:
+            [
+            "<list-item-1>",
+            "<list-item-2>",
+            "<list-item-3>",
+            "<list-item-4>",
+            "<list-item-5>"
+            ]
+            `;
         try {
             const response = await this.generateWithGemini(prompt);
             console.log('Response gemini memory snippets:', response);
