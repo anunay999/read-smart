@@ -146,31 +146,46 @@ class MemoryEnhancedReading {
      */
     async extractContentTopics(content) {
         const prompt = `
-            You are an AI assistant that extracts key topics and themes from content for semantic search.
+            You are "ReadSmart Topic Extractor", an AI that distills any document into concise, search-friendly topics.
 
-            Analyze the given content and extract 3-5 key topics/themes that would be useful for searching related memories. Focus on:
-            1. Main subject areas (e.g., "productivity", "exercise", "habits")
-            2. Specific methodologies or concepts (e.g., "deep work", "time blocking", "habit formation")
-            3. Related skills or areas (e.g., "focus techniques", "behavior change", "mindfulness")
+            INSTRUCTIONS
+            1. Read the SOURCE below.
+            2. Output 3–5 *distinct* topics as a raw JSON array (no markdown fence, no commentary).
 
-            Return the topics as a JSON array of strings, each topic should be 1-4 words.
+            TOPIC RULES
+            • 1–4 words, Title Case nouns/noun phrases only.  
+            • No verbs, sentences, or punctuation other than hyphens.  
+            • Prefer specific over generic (“Interval Training” > “Exercise”).  
+            • No duplicates or near-duplicates.
 
-            Content:
-            ${content}
+            WHAT TO LOOK FOR
+            1. Core subject areas – e.g., "Quantum Computing", "Sustainable Agriculture".  
+            2. Named frameworks, models, or architectures – e.g., "Transformer Models", "Design Thinking".  
+            3. Skills, techniques, or procedures – e.g., "Cold Emailing", "Mindful Breathing".  
+            4. Laws, regulations, or standards – e.g., "GDPR Compliance", "ISO 27001".  
+            5. Domain-specific entities:  
+               • Health – "Type 2 Diabetes", "mRNA Vaccines"  
+               • Finance – "Index Funds", "Compound Interest"  
+               • Tech – "React Hooks", "HTTP/3"  
+               • Science – "Gravitational Waves", "p-Value"  
+               • Culture – "Afrofuturism", "Slow Fashion".
 
-            Return only the JSON array, no additional text not even a code block specifying json.
+            MULTI-DOMAIN FORMAT EXAMPLES
+            Tech    → ["Edge Computing", "Serverless Functions", "Latency Optimization"]  
+            Health  → ["Intermittent Fasting", "Ketogenic Diet", "Insulin Sensitivity"]  
+            Finance → ["Value Investing", "Market Volatility", "Dollar-Cost Averaging"]  
+            Education → ["Project-Based Learning", "Growth Mindset", "Flipped Classroom"]  
+            History   → ["Industrial Revolution", "Cold War", "Silk Road"]  
+            Sports    → ["Triangle Offense", "High-Intensity Interval Training", "Zone Defense"]  
+            Environment → ["Carbon Footprint", "Circular Economy", "Renewable Energy"]  
+            Politics   → ["Electoral College", "Populist Movements", "Campaign Finance"]  
+            Art & Culture → ["Impressionist Painting", "Street Photography", "Contemporary Sculpture"]  
+            Literature → ["Magical Realism", "Stream of Consciousness", "Bildungsroman"]  
+            Mathematics → ["Graph Theory", "Linear Regression", "Fourier Transform"]  
+            Psychology  → ["Cognitive Dissonance", "Positive Reinforcement", "Flow State"]
 
-            Example response:
-
-            [
-            <list-item-1>,
-            <list-item-2>,
-            <list-item-3>,
-            <list-item-4>,
-            <list-item-5>
-            ]
-
-            `;
+            SOURCE
+            ${content}`;
 
         try {
             const response = await this.generateWithGemini(prompt);
@@ -310,35 +325,48 @@ class MemoryEnhancedReading {
      */
     async generateMemorySnippets(content) {
         const prompt = `
-            You are an AI assistant that creates concise, valuable memory snippets from web page content.
+            You are "ReadSmart Memory Extractor", an AI that converts a web page into future-useful personal memories.
 
-            Your task is to analyze the given page content and extract 3-5 key memory snippets that capture:
-            1. Main concepts, facts, or insights
-            2. User preferences or interests mentioned
-            3. Important methodologies or approaches
-            4. Key takeaways or conclusions
-            5. Any personal context or examples
+            INSTRUCTIONS
+            1. Read the SOURCE below.
+            2. Produce exactly 3-5 memory snippets as a *raw JSON array* (no markdown fence, no prose).
+               • Each ≤ 25 words, 1-2 sentences.
+               • Each must capture a *distinct* idea (no overlap).
+               • Be specific, avoid generic phrasing.
+               • Use third-person framing when helpful (e.g., "The reader learned that …").
 
-            Each memory snippet should be:
-            - 1-2 sentences maximum
-            - Specific rather than generic
-            - Useful for future reference
-            - Written in third person when applicable (e.g., "User read that..." or "User visited...")
+            WHAT TO CAPTURE
+            • Core insight, fact, or argument.
+            • Methods, frameworks, or step-by-step processes.
+            • Memorable statistics, definitions, or examples.
+            • Stated user preferences or intentions (if present).
 
-            Page Content:
-            ${content}
+            FORMAT
+            Return ONLY the JSON array, e.g.: ["Snippet 1","Snippet 2","Snippet 3"].
 
-            Return the snippets as a JSON array of strings, no additional text not even a code block specifying json.
-
-            Example response:
-
+            EXAMPLE OUTPUT FOR A TECH ARTICLE
             [
-            <list-item-1>,
-            <list-item-2>,
-            <list-item-3>,
-            <list-item-4>,
-            <list-item-5>
-            ]`;
+              "The reader learned that Rust guarantees memory safety without garbage collection.",
+              "Async/await in JavaScript simplifies promise-based concurrency.",
+              "WebAssembly enables near-native speed for browser applications."
+            ]
+
+            EXAMPLE OUTPUT FOR A HEALTH ARTICLE
+            [
+              "High-intensity interval training improves cardiovascular fitness with short workouts.",
+              "Mediterranean diet emphasizes whole grains, olive oil, and lean proteins.",
+              "Mindfulness practice can reduce stress-related cortisol levels."
+            ]
+
+            EXAMPLE OUTPUT FOR A FINANCE ARTICLE
+            [
+              "Dollar-cost averaging reduces the impact of market volatility on investments.",
+              "Index funds often outperform actively managed funds over long periods.",
+              "Compound interest accelerates growth when earnings are reinvested."
+            ]
+
+            SOURCE
+            ${content}`;
         try {
             const response = await this.generateWithGemini(prompt);
             console.log('Response gemini memory snippets:', response);
@@ -400,6 +428,10 @@ class MemoryEnhancedReading {
         – The reader scans in a small popup; keep visuals punchy.  
         – Comply with all HARD RULES.    
         You will be eliminated if you do not follow these rules.
+
+        FILTERING MEMORY  
+        • Ignore any memory that is not obviously related to the article's subject – better to omit than force relevance.  
+        • Paraphrase memory ideas; never quote them verbatim.
         `;
         
         try {
