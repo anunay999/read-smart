@@ -31,7 +31,7 @@
 
 ## Demo
 
-[![Read Smart Demo](https://img.youtube.com/vi/0EXEtuq2dZA/hqdefault.jpg)](https://youtu.be/0EXEtuq2dZA "Watch the full demo on YouTube")
+[![Read Smart Demo](https://img.youtube.com/vi/SgKCur2sMLU/hqdefault.jpg)](https://youtu.be/SgKCur2sMLU "Watch the full demo on YouTube")
 ---
 
 
