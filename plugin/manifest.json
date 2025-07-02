@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "read smart",
-    "version": "1.0",
+    "version": "1.1",
     "description": "Your memory-aware editor that rewrites pages to skip what you know and spotlight what's new",
     "icons": {
       "16": "assets/icons/icon16.png",
