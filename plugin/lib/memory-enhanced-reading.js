@@ -254,7 +254,7 @@ class MemoryEnhancedReading {
      * Debug logging helper
      */
     debugLog(message, data = null) {
-        if (this.debug || true) {
+        if (this.debug) {
             if (data) {
                 console.log(message, data);
             } else {

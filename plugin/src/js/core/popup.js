@@ -211,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
             relevanceThreshold: safeRelevance,
             maxMemories: safeMaxMemories,
             geminiModel,
-            debug: true,
+            debug: false,
             geminiApiKey: geminiKey,
             mem0ApiKey: mem0Key
           }
