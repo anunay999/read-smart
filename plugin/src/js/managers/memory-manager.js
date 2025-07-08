@@ -72,7 +72,7 @@
       }
     }
     
-    async addPageToMemory(content, url, options = {}){
+    async addPageToMemory(content, url, options = {}, progressCallback = null){
       if (!this.initialized || !this.reader) {
         throw new Error('Memory manager not properly initialized');
       }
@@ -106,7 +106,7 @@
           console.log('⚠️ Force flag set – skipping duplicate check');
         }
         
-        const result = await this.reader.addPageToMemory(content, url, options);
+        const result = await this.reader.addPageToMemory(content, url, progressCallback);
         
         if(result.success){
           console.log('✅ Memory addition successful, caching content');
@@ -136,11 +136,11 @@
       }
     }
 
-    async forceAddToMemory(content, url){
-      return await this.addPageToMemory(content, url, { force: true });
+    async forceAddToMemory(content, url, progressCallback = null){
+      return await this.addPageToMemory(content, url, { force: true }, progressCallback);
     }
     
-    async rephraseWithUserMemories(text, context = {}){
+    async rephraseWithUserMemories(text, progressCallback = null){
       if (!this.initialized || !this.reader) {
         throw new Error('Memory manager not properly initialized');
       }
@@ -152,7 +152,7 @@
       try {
         this._ensureInitialized();
         
-        const result = await this.reader.rephraseWithUserMemories(text, context);
+        const result = await this.reader.rephraseWithUserMemories(text, progressCallback);
         
         if(result.success){
           await eventManager.emit('rephrase:success', result);
@@ -167,7 +167,7 @@
           success: false, 
           processed: false, 
           error: error.message,
-          rephrasedContent: text, // fallback to original
+          rephrasedContent: null,
           originalContent: text,
           relevantMemoriesCount: 0
         };

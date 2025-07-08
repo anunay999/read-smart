@@ -8,7 +8,8 @@
   <div class="container">
     <div class="header">
       <img src="../../assets/icons/icon48.png" alt="read smart">
-      <h1>read smart</h1>
+      <h1>read-smart</h1>
+      <a href="https://anunay.dev/blog/read-smart" target="_blank" rel="noopener noreferrer" class="help-icon header-help-icon" title="Open Getting Started Guide">Getting Started?</a>
     </div>
     
     <button class="settings-button" id="configButton">
@@ -18,19 +19,8 @@
     <div class="feature-section">
       <div class="feature-item">
         <div class="feature-info">
-          <div class="feature-title">Reader Mode</div>
-          <div class="feature-description">Clean, distraction-free reading view</div>
-        </div>
-        <label class="toggle-switch">
-          <input type="checkbox" id="readerModeToggle">
-          <span class="slider"></span>
-        </label>
-      </div>
-      
-      <div class="feature-item">
-        <div class="feature-info">
-          <div class="feature-title">Smart Rephrase Mode</div>
-          <div class="feature-description">Memory-augmented reading view</div>
+          <div class="feature-title">Smart Read Mode</div>
+          <div class="feature-description">AI-powered reading with personal memory integration</div>
         </div>
         <label class="toggle-switch">
           <input type="checkbox" id="rephraseToggle">
@@ -40,14 +30,14 @@
     </div>
     
     <div class="status" id="statusText">
-      Normal reading mode
+      Normal mode
     </div>
 
     <!-- progress overlay moved to content script -->
 
     <div class="action-buttons">
       <button id="memoryButton" class="action-btn primary">
-        Add to Memory
+        Add Page to Memory
       </button>
       <button id="dashboardButton" class="action-btn">
         View Memory
@@ -65,13 +55,13 @@
       
       <div class="modal-body">
         <div class="api-key-group">
-          <label class="api-key-label">Gemini API Key</label>
+          <label class="api-key-label">Gemini API Key <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="help-icon" title="Open Google AI Studio to create an API key">?</a></label>
           <input type="password" id="geminiApiKeyInput" class="api-key-input" placeholder="Enter your Gemini API key">
           <div id="geminiStatus" class="api-status missing">Not configured</div>
         </div>
         
         <div class="api-key-group">
-          <label class="api-key-label">Mem0 API Key</label>
+          <label class="api-key-label">Mem0 API Key <a href="https://mem0.ai" target="_blank" rel="noopener noreferrer" class="help-icon" title="Open Mem0 settings to generate an API key">?</a></label>
           <input type="password" id="mem0ApiKeyInput" class="api-key-input" placeholder="Enter your Mem0 API key">
           <div id="mem0Status" class="api-status missing">Not configured</div>
         </div>

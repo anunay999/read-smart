@@ -39,12 +39,16 @@ let progressOverlayLoaded = false;
 
 class ReadSmartState {
   constructor() {
-    this.readerModeActive = false;
     this.smartRephraseActive = false;
     this.overlay = null;
     this.geminiApiKey = null;
     this.originalArticle = null;
     this.rephrasedContent = null;
+    this.noRelevantMemoriesFound = false; // Tracks if memory search failed for current page
+    this.noMemoryPageUrl = null;
+    this.contentGenerationFailed = false; // Tracks if content generation failed for current page
+    this.generationFailureMessage = null; // Stores the specific error message
+    this.generationFailurePageUrl = null; // Tracks which page the failure occurred on
     // Advanced configuration defaults
     this.config = {
       systemPrompt: '',
@@ -54,26 +58,39 @@ class ReadSmartState {
     };
   }
 
-  setReaderMode(active) {
-    this.readerModeActive = active;
-    this.smartRephraseActive = !active;
-  }
-
   setSmartRephraseMode(active) {
     this.smartRephraseActive = active;
-    this.readerModeActive = !active;
   }
 
   reset() {
-    this.readerModeActive = false;
     this.smartRephraseActive = false;
     this.overlay = null;
     this.originalArticle = null;
     this.rephrasedContent = null;
+    // Reset failure states
+    this.noRelevantMemoriesFound = false;
+    this.noMemoryPageUrl = null;
+    this.contentGenerationFailed = false;
+    this.generationFailureMessage = null;
+    this.generationFailurePageUrl = null;
   }
 }
 
 const state = new ReadSmartState();
+
+// =============================================================================
+// DEBUG LOGGING
+// =============================================================================
+
+function debugLog(message, data = null) {
+  if (state.config.debug) {
+    if (data) {
+      console.log(message, data);
+    } else {
+      console.log(message);
+    }
+  }
+}
 
 // =============================================================================
 // INITIALIZATION
@@ -91,6 +108,9 @@ async function initializeContentScript() {
     state.config.maxMemories = configManager.get('maxMemories');
     state.config.geminiModel = configManager.get('geminiModel');
     state.config.debug = configManager.get('debugMode');
+
+    // Reset memory-related flags for a fresh page load
+    resetFailureStates();
 
     chrome.runtime.sendMessage({ action: 'contentScriptReady' });
     
@@ -113,26 +133,6 @@ async function initializeContentScript() {
 // =============================================================================
 
 const messageHandlers = {
-  enableReaderMode: async () => {
-    await enablePlainReaderMode();
-    return { success: true };
-  },
-
-  disableReaderMode: () => {
-    disableReaderMode();
-    return { success: true };
-  },
-
-  toggleReaderMode: async () => {
-    if (state.readerModeActive) {
-      disableReaderMode();
-      return { success: true, active: false };
-    } else {
-      await enablePlainReaderMode();
-      return { success: true, active: true };
-    }
-  },
-
   enableSmartRephrase: async () => {
     await enableSmartRephraseMode();
     return { success: true };
@@ -144,7 +144,6 @@ const messageHandlers = {
   },
 
   getState: () => ({
-    readerModeActive: state.readerModeActive,
     smartRephraseActive: state.smartRephraseActive
   }),
 
@@ -212,6 +211,74 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // =============================================================================
+// STATE HELPERS
+// =============================================================================
+
+function checkAndHandleFailureState(currentUrl) {
+  // Check for previous memory search failure
+  if (state.noRelevantMemoriesFound && state.noMemoryPageUrl === currentUrl) {
+    alert('No relevant memories found – cannot personalise article');
+    throw new Error('No relevant memories found');
+  }
+  
+  // Check for previous content generation failure
+  if (state.contentGenerationFailed && state.generationFailurePageUrl === currentUrl) {
+    alert(state.generationFailureMessage || 'Failed to generate personalized content');
+    throw new Error('Content generation failed');
+  }
+  
+  // Reset flags if on different page
+  if (state.noRelevantMemoriesFound && state.noMemoryPageUrl !== currentUrl) {
+    state.noRelevantMemoriesFound = false;
+    state.noMemoryPageUrl = null;
+  }
+  
+  if (state.contentGenerationFailed && state.generationFailurePageUrl !== currentUrl) {
+    state.contentGenerationFailed = false;
+    state.generationFailureMessage = null;
+    state.generationFailurePageUrl = null;
+  }
+}
+
+function resetFailureStates() {
+  state.noRelevantMemoriesFound = false;
+  state.noMemoryPageUrl = null;
+  state.contentGenerationFailed = false;
+  state.generationFailureMessage = null;
+  state.generationFailurePageUrl = null;
+}
+
+async function handleCachedContent(pageUrl) {
+  if (!window.readSmartPageCache) return null;
+  
+  const cached = window.readSmartPageCache.get(pageUrl);
+  if (!cached?.markdown) return null;
+  
+  debugLog('✅ ReadSmart: L1 page cache hit. Skipping regeneration.');
+  
+  // Simulate progress for cached content with realistic timing
+  const delays = [0, 300, 600, 900, 1200];
+  for (let i = 0; i < 4; i++) {
+    await new Promise(resolve => setTimeout(resolve, delays[i]));
+    completeProgressStep(i);
+  }
+  
+  const article = await extractMainContent();
+  state.originalArticle = article;
+  await renderReaderOverlay({
+    title: article.title,
+    content: cached.markdown
+  }, true);
+
+  state.setSmartRephraseMode(true);
+  state.rephrasedContent = cached.markdown;
+  
+  completeProgressStep(4);
+  setTimeout(hideProgressOverlay, 1500);
+  return true; // Indicates cache was used
+}
+
+// =============================================================================
 // CORE FUNCTIONALITY
 // =============================================================================
 
@@ -233,31 +300,23 @@ async function enablePlainReaderMode() {
 }
 
 async function enableSmartRephraseMode() {
+  const currentUrl = window.location.href;
+  checkAndHandleFailureState(currentUrl);
+
   try {
-    const steps = ['Preparing page', 'Generating with memory', 'Done'];
+    const steps = [
+      'Extracting content',
+      'Searching memories', 
+      'Validating relevance',
+      'Generating content',
+      'Finalizing'
+    ];
     await showProgressOverlay(steps);
     const pageUrl = window.location.href;
 
-    // Attempt to serve from in-memory L1 cache first
-    if (window.readSmartPageCache) {
-      const cached = window.readSmartPageCache.get(pageUrl);
-      if (cached && cached.markdown) {
-        console.log('✅ ReadSmart: L1 page cache hit. Skipping regeneration.');
-        const article = await extractMainContent();
-        state.originalArticle = article;
-        await renderReaderOverlay({
-          title: article.title,
-          content: cached.markdown
-        }, true);
-
-        state.setSmartRephraseMode(true);
-        state.rephrasedContent = cached.markdown;
-        completeProgressStep(0);
-        completeProgressStep(1);
-        completeProgressStep(2);
-        setTimeout(hideProgressOverlay, 1500);
-        return; // Short-circuit – we're done.
-      }
+    // Attempt to serve from cache first
+    if (await handleCachedContent(pageUrl)) {
+      return; // Cache hit - we're done
     }
 
     const article = await extractMainContent();
@@ -290,19 +349,20 @@ async function enableSmartRephraseMode() {
       });
     }
   } catch (error) {
+    if (error.message && error.message.includes('No relevant memories')) {
+      state.noRelevantMemoriesFound = true;
+      state.noMemoryPageUrl = window.location.href;
+      try { alert('No relevant memories found – cannot personalise article'); } catch (_) {}
+    }
     cleanupOverlays();
     hideProgressOverlay();
+    // Ensure original page is visible again
+    try { restoreOriginalContent(); } catch (_) {}
     console.error('Error in enableSmartRephraseMode:', error);
     throw error;
   }
 }
 
-function disableReaderMode() {
-  cleanupOverlays();
-  hideProgressOverlay();
-  restoreOriginalContent();
-  state.reset();
-}
 
 function disableSmartRephrase() {
   cleanupOverlays();
@@ -358,7 +418,7 @@ async function extractPageContentForMemory() {
       const extractedContent = article.textContent.trim();
       
       // Debug: Log content extraction details
-      console.log('📄 Content extracted via Readability:', {
+      debugLog('📄 Content extracted via Readability:', {
         title: article.title || document.title || 'Untitled Page',
         contentLength: extractedContent.length,
         contentHash: await simpleHash(extractedContent),
@@ -383,7 +443,7 @@ async function extractPageContentForMemory() {
     }
     
     // Debug: Log fallback content extraction
-    console.log('📄 Content extracted via fallback:', {
+    debugLog('📄 Content extracted via fallback:', {
       title: title,
       contentLength: content.length,
       contentHash: await simpleHash(content),
@@ -507,7 +567,7 @@ async function renderReaderOverlay(article, isMarkdown = false) {
 }
 
 async function showSkeletonOverlay() {
-  console.log('Creating skeleton overlay');
+  debugLog('Creating skeleton overlay');
   
   cleanupOverlays();
   disableReaderStyles();
@@ -537,7 +597,7 @@ async function showSkeletonOverlay() {
   // Force reflow
   state.overlay.offsetHeight;
   
-  console.log('Skeleton overlay created');
+  debugLog('Skeleton overlay created');
 }
 
 // =============================================================================
@@ -620,42 +680,44 @@ async function tryRephraseWithMemories(article) {
   try {
     // Check if memoryManager is properly initialized
     if (!memoryManager || !memoryManager.reader) {
-      console.error('Memory manager not properly initialized, falling back to Gemini');
-      return await rephraseWithGeminiFallback(article.textContent);
+      throw new Error('Memory manager not properly initialized');
     }
 
-    const result = await memoryManager.rephraseWithUserMemories(article.textContent);
+    const result = await memoryManager.rephraseWithUserMemories(article.textContent, completeProgressStep);
     if (result.success && result.rephrasedContent) {
-      console.log('Successfully rephrased with memories');
+      debugLog('Successfully rephrased with memories');
       return result.rephrasedContent;
     }
+
+    // If not successful, propagate error
+    throw new Error(result.error || 'Failed to rephrase with memories');
   } catch (error) {
-    console.error('Memory rephrasing failed, falling back to Gemini:', error);
+    console.error('Memory rephrasing failed:', error);
+    
+    // Set generation failure state for this page
+    state.contentGenerationFailed = true;
+    state.generationFailureMessage = 'Failed to generate personalized content: ' + (error.message || 'Unknown error');
+    state.generationFailurePageUrl = window.location.href;
+    
+    // Show alert immediately
+    try { 
+      alert('Failed to generate personalized content: ' + (error.message || 'Unknown error')); 
+    } catch (_) {}
+    
+    // Propagate the error up so caller can handle rollback
+    throw error;
   }
-
-  console.log('Using fallback Gemini rephrasing');
-  return await rephraseWithGeminiFallback(article.textContent);
-}
-
-async function rephraseWithGeminiFallback(text) {
-  if (!state.geminiApiKey) {
-    throw new Error('Gemini API key not set. Please set it in the extension settings.');
-  }
-
-  // Check if memoryManager and reader are available
-  if (!memoryManager || !memoryManager.reader || typeof memoryManager.reader.generateWithGemini !== 'function') {
-    throw new Error('Memory manager not properly initialized. Cannot access Gemini functionality.');
-  }
-
-  const userPrompt = state.config?.systemPrompt?.trim() || null;
-
-  return await memoryManager.reader.generateWithGeminiFallback(userPrompt, text);
 }
 
 
 async function addPageToMemory(force = false) {
   try {
-    const steps = ['Preparing page', 'Uploading content', 'Done'];
+    const steps = [
+      'Extracting content',
+      'Generating snippets',
+      'Uploading to memory',
+      'Finalizing'
+    ];
     await showProgressOverlay(steps);
     // Check if memoryManager is properly initialized
     if (typeof memoryManager === 'undefined' || memoryManager === null) {
@@ -673,21 +735,23 @@ async function addPageToMemory(force = false) {
     }
 
     const pageUrl = window.location.href;
-    const opts = force ? { force: true } : {};
     
-    const result = await memoryManager.addPageToMemory(contentResult.content, pageUrl, opts);
+    const result = force ? 
+      await memoryManager.forceAddToMemory(contentResult.content, pageUrl, completeProgressStep) :
+      await memoryManager.addPageToMemory(contentResult.content, pageUrl, completeProgressStep);
     
     if (result.success && result.processed) {
-      completeProgressStep(1);
-      completeProgressStep(2);
-      setTimeout(hideProgressOverlay, 1500);
+      // Final step completion - other steps should be completed by progress callback
+      setTimeout(() => {
+        completeProgressStep(3);
+        hideProgressOverlay();
+      }, 1500);
     } else {
       hideProgressOverlay();
     }
 
     return result;
   } catch (error) {
-    hideProgressOverlay();
     console.error('❌ Error in addPageToMemory:', error);
     
     // Provide more specific error messages
@@ -699,6 +763,8 @@ async function addPageToMemory(force = false) {
     } else if (error.message.includes('API key')) {
       userFriendlyMessage = 'Invalid API key. Please check your settings.';
     }
+    
+    alert(userFriendlyMessage);
     
     return { 
       success: false, 
@@ -717,16 +783,17 @@ async function addPageToMemory(force = false) {
 // =============================================================================
 
 async function transitionFromSkeletonToContent(article, rephrasedContent) {
-  console.log('Transitioning from skeleton to content');
+  debugLog('Transitioning from skeleton to content');
   removeOverlay();
   await new Promise(resolve => setTimeout(resolve, CONSTANTS.TRANSITION_DELAY));
   await renderReaderOverlay({
     title: article.title,
     content: rephrasedContent
   }, true);
-  completeProgressStep(1);
+  
+  // Only complete the final step - other steps should be completed by progress callback
   setTimeout(() => {
-    completeProgressStep(2);
+    completeProgressStep(4);
     hideProgressOverlay();
   }, 1500);
 }
@@ -843,10 +910,8 @@ async function ensureProgressAssets() {
   progressOverlayLoaded = true;
 }
 
-let progressSteps = [];
 async function showProgressOverlay(steps) {
   await ensureProgressAssets();
-  progressSteps = steps;
 
   const container = document.getElementById(PROGRESS_ID);
   if (!container) return;
