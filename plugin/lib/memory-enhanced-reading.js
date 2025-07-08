@@ -9,6 +9,207 @@ if (typeof window !== 'undefined' && window.MemoryEnhancedReading) {
  * based on user's reading history and memories.
  */
 
+// =============================================================================
+// PROMPT TEMPLATES
+// =============================================================================
+
+const PROMPTS = {
+  TOPIC_EXTRACTOR: (content) => `
+    You are "ReadSmart Topic Extractor", an AI that distills any document into concise, search-friendly topics.
+
+    INSTRUCTIONS
+    1. Read the SOURCE below.
+    2. Output 3–5 *distinct* topics as a raw JSON array (no markdown fence, no commentary).
+
+    TOPIC RULES
+    • 1–4 words, Title Case nouns/noun phrases only.  
+    • No verbs, sentences, or punctuation other than hyphens.  
+    • Prefer specific over generic (“Interval Training” > “Exercise”).  
+    • No duplicates or near-duplicates.
+
+    WHAT TO LOOK FOR
+    1. Core subject areas – e.g., "Quantum Computing", "Sustainable Agriculture".  
+    2. Named frameworks, models, or architectures – e.g., "Transformer Models", "Design Thinking".  
+    3. Skills, techniques, or procedures – e.g., "Cold Emailing", "Mindful Breathing".  
+    4. Laws, regulations, or standards – e.g., "GDPR Compliance", "ISO 27001".  
+    5. Domain-specific entities:  
+        • Health – "Type 2 Diabetes", "mRNA Vaccines"  
+        • Finance – "Index Funds", "Compound Interest"  
+        • Tech – "React Hooks", "HTTP/3"  
+        • Science – "Gravitational Waves", "p-Value"  
+        • Culture – "Afrofuturism", "Slow Fashion".
+
+    MULTI-DOMAIN FORMAT EXAMPLES
+    Tech    → ["Edge Computing", "Serverless Functions", "Latency Optimization"]  
+    Health  → ["Intermittent Fasting", "Ketogenic Diet", "Insulin Sensitivity"]  
+    Finance → ["Value Investing", "Market Volatility", "Dollar-Cost Averaging"]  
+    Education → ["Project-Based Learning", "Growth Mindset", "Flipped Classroom"]  
+    History   → ["Industrial Revolution", "Cold War", "Silk Road"]  
+    Sports    → ["Triangle Offense", "High-Intensity Interval Training", "Zone Defense"]  
+    Environment → ["Carbon Footprint", "Circular Economy", "Renewable Energy"]  
+    Politics   → ["Electoral College", "Populist Movements", "Campaign Finance"]  
+    Art & Culture → ["Impressionist Painting", "Street Photography", "Contemporary Sculpture"]  
+    Literature → ["Magical Realism", "Stream of Consciousness", "Bildungsroman"]  
+    Mathematics → ["Graph Theory", "Linear Regression", "Fourier Transform"]  
+    Psychology  → ["Cognitive Dissonance", "Positive Reinforcement", "Flow State"]
+
+    SOURCE
+    ${content}
+    
+    OUTPUT FORMAT
+    • Return only the JSON array, no additional text not even a code block specifying json.
+    • Format strings with approriate delimiters.
+
+    Example response:
+    
+    [
+    "<list-item-1>",
+    "<list-item-2>",
+    "<list-item-3>",
+    "<list-item-4>",
+    "<list-item-5>"
+    ]
+  `,
+
+  RELEVANCE_VALIDATOR: (articleTopics, memories) => `
+    You are "ReadSmart Relevance Validator", an AI that determines if memories are truly relevant to an article's core topics.
+
+    TASK
+    Analyze the ARTICLE_TOPICS and MEMORIES below. Return a JSON object indicating whether the memories are sufficiently relevant to generate personalized content.
+
+    RELEVANCE CRITERIA
+    • Memory must directly relate to at least one article topic
+    • Memory must provide meaningful context or background knowledge
+    • Memory must be more than just tangentially related
+    • General knowledge or broad concepts don't count as relevant
+
+    VALIDATION RULES
+    • Need at least 2 highly relevant memories for valid result
+    • Each memory gets relevance score: 0 (not relevant), 1 (somewhat relevant), 2 (highly relevant)
+    • Overall validation passes only if total score ≥ 4 and at least 2 memories score ≥ 1
+
+    ARTICLE_TOPICS
+    ${JSON.stringify(articleTopics)}
+
+    MEMORIES
+    ${memories.map((mem, idx) => `${idx + 1}. ${mem.memory}`).join('\n')}
+
+    OUTPUT FORMAT
+    • Return only the JSON object nothing else, no additional text not even a code block specifying json.
+    • Format strings with approriate delimiters.
+
+    EXAMPLE OUTPUT FORMAT:
+    {
+        "isValid": boolean,
+        "reason": "string explaining validation result",
+        "memoryScores": [array of scores 0-2 for each memory],
+        "totalScore": number,
+        "validMemoryCount": number
+    }
+  `,
+
+  MEMORY_EXTRACTOR: (content) => `
+    You are "ReadSmart Memory Extractor", an AI that converts a web page into future-useful personal memories.
+
+    INSTRUCTIONS
+    1. Read the SOURCE below.
+    2. Produce exactly 3-5 memory snippets as a *raw JSON array* (no markdown fence, no prose).
+       • Each ≤ 25 words, 1-2 sentences.
+       • Each must capture a *distinct* idea (no overlap).
+       • Be specific, avoid generic phrasing.
+       • Use third-person framing when helpful (e.g., "The reader learned that …").
+       • Format as a JSON array of strings with approriate delimiters.
+
+    WHAT TO CAPTURE
+    • Core insight, fact, or argument.
+    • Methods, frameworks, or step-by-step processes.
+    • Memorable statistics, definitions, or examples.
+    • Stated user preferences or intentions (if present).
+
+    FORMAT
+    • Format strictly as a JSON array with approriate delimiters.
+    • Return ONLY the JSON array, e.g.: ["Snippet 1","Snippet 2","Snippet 3"].
+
+    Example response:
+    
+    [
+    "<list-item-1>",
+    "<list-item-2>",
+    "<list-item-3>",
+    "<list-item-4>",
+    "<list-item-5>"
+    ]
+
+    SOURCE
+    ${content}
+    
+    Return only the JSON array, no additional text.
+  `,
+
+  CONTENT_PERSONALIZER: (memoryText, content) => `
+    You are an elite content-personaliser.
+    
+    CRITICAL VALIDATION CHECKPOINT ❗
+    Before proceeding with content generation, you MUST verify that the provided memories are genuinely relevant to this article's core topics. If fewer than 2 memories are directly relevant, or if the memories only provide tangential connections, you MUST respond with exactly: "INSUFFICIENT_RELEVANT_MEMORIES" and stop immediately.
+    
+    GOAL  
+    Rewrite the article in the author's voice, only covering **NEW information for the reader**, and tightly linking back to their stored memories.
+    
+    🚫 ZERO HALLUCINATIONS RULE ❗  
+    You may not introduce, infer, or fabricate **any** information that does not appear **explicitly** in the original article. All insights, conclusions, and facts must be grounded in the provided article content. If it's not in the article, do not mention it — even if it seems logical or helpful.
+    
+    MEMORY SCOPE LIMIT  
+    In "What You Already Know", only include bullets that are *clearly relevant* to the main topic of the current article. General knowledge, off-topic AI ideas, or tangential memories must be excluded. Err on the side of omission.
+    
+    HARD RULES  ❗  
+    1. Output **exactly** two top-level headings, in this order (no pre-amble, no epilogue):  
+    ## SECTION 1 – Recap & References  
+    ## SECTION 2 – Fresh Content in Author's Voice  
+    
+    2. Stop writing immediately after SECTION 2.  
+    
+    3. Adjust total length to fit the article:  
+       • For long articles, summarise to a concise version (max **1500 words**).  
+       • For short articles, do NOT expand unnecessarily—keep it close to the original length.  
+       • Always preserve key details and nuance; avoid excessive shortening or lengthening.  
+       • Max **4 sentences** per paragraph.  
+    
+    4. Insert a sub-heading or bullet block at least every **120 words** within SECTION 2.  
+    
+    5. In SECTION 1:  
+    • **Context Bridge** – 1–2 sentences.  
+    • **What You Already Know** – 3–5 bullets, ⚠️ CRITICAL: Only include snippets that are **DIRECTLY RELEVANT** to the article's core topic. No tangents. When in doubt, leave it out.
+    • **References** – bullet list of \`[Title](URL)\` links. ⚠️ CRITICAL: Only include references that are **DIRECTLY RELEVANT** to the article's core topic. No tangents. When in doubt, leave it out.
+    
+    6. **Do NOT** include any other headings, metadata, HTML, or markdown not specified above. Output must be clean, valid Markdown only.  
+    
+    7. **RESTART AND FIX** if any rule is broken. No partial compliance.  
+    
+    8. **REFERENCE & MEMORY RELEVANCE CHECK**:  
+    • References must **directly support or relate** to the main subject of the article.  
+    • Memories must be **topically aligned** with the article — no general knowledge or unrelated concepts.  
+    • If the match is even slightly unclear, exclude it.
+    
+    STYLE HINTS  
+    • Match the author's vocabulary and cadence (semi-formal tech-blog).  
+    • Bold key takeaways, *italicise pivotal terms*, use \`> block quotes\` sparingly.  
+    • Avoid filler or over-explaining; respect the reader's time and intelligence.
+    
+    INPUTS  
+    READER_MEMORIES  
+    ${memoryText}
+    
+    ORIGINAL_ARTICLE  
+    ${content}
+    
+    REMEMBER  
+    – You may NOT repeat memory passages verbatim.  
+    – Never invent or imply content beyond the article.  
+    – The reader scans in a small popup; visuals must be concise and punchy.  
+    – Obey all HARD RULES with zero tolerance for error.
+  `
+};
+
 class MemoryEnhancedReading {
     constructor(config = {}) {
         // Static / constant parts
@@ -18,7 +219,8 @@ class MemoryEnhancedReading {
         this.applyConfig({
             maxMemories: 6,
             relevanceThreshold: 0.3,
-            geminiModel: 'gemini-2.5-flash'
+            geminiModel: 'gemini-2.5-flash',
+            debug: false
         });
 
         // 2. Overlay with values provided by ConfigManager (if any)
@@ -45,6 +247,20 @@ class MemoryEnhancedReading {
 
         if (typeof cfg.maxMemories !== 'undefined') this.maxMemories = cfg.maxMemories;
         if (typeof cfg.relevanceThreshold !== 'undefined') this.relevanceThreshold = cfg.relevanceThreshold;
+        if (typeof cfg.debug !== 'undefined') this.debug = cfg.debug;
+    }
+
+    /**
+     * Debug logging helper
+     */
+    debugLog(message, data = null) {
+        if (this.debug || true) {
+            if (data) {
+                console.log(message, data);
+            } else {
+                console.log(message);
+            }
+        }
     }
 
     /**
@@ -52,27 +268,27 @@ class MemoryEnhancedReading {
      */
     async makeApiCall(url, options) {
         try {
-            console.log(`Making API call to: ${url}`);
-            console.log('Request options:', {
+            this.debugLog(`Making API call to: ${url}`);
+            this.debugLog('Request options:', {
                 method: options.method,
                 headers: options.headers,
                 body: options.body ? JSON.parse(options.body) : null
             });
 
             const response = await fetch(url, options);
-            console.log(`Response status: ${response.status}`);
+            this.debugLog(`Response status: ${response.status}`);
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.log('Error response body:', errorText);
+                this.debugLog('Error response body:', errorText);
                 throw new Error(`API call failed: ${response.status} - ${errorText.substring(0, 200)}`);
             }
 
             const responseData = await response.json();
-            console.log('Response data:', responseData);
+            this.debugLog('Response data:', responseData);
             return responseData;
         } catch (error) {
-            console.log('API call error:', error);
+            console.error('API call error:', error);
             throw error;
         }
     }
@@ -81,7 +297,7 @@ class MemoryEnhancedReading {
      * Generate content using Gemini API
      */
     async generateWithGemini(prompt) {
-        console.log('Generating with Gemini');
+        this.debugLog('Generating with Gemini');
         const requestBody = {
             contents: [{
                 parts: [{
@@ -90,7 +306,7 @@ class MemoryEnhancedReading {
             }]
         };
 
-        console.log('Request body:', requestBody);
+        this.debugLog('Request body:', requestBody);
 
         const options = {
             method: 'POST',
@@ -105,100 +321,13 @@ class MemoryEnhancedReading {
         return response.candidates[0].content.parts[0].text;
     }
 
-    async generateWithGeminiFallback(userPrompt, text) {
-        const systemPrompt = `
-            You are ReadSmart Rephraser.
-
-            TASK
-            Rephrase the SOURCE text so it is:
-            1. Clear, concise and engaging.
-            2. Easy to scan (short paragraphs, active voice).
-            3. Faithful to the original meaning and all key facts.
-
-            GUIDELINES
-            • Preserve headings, lists, links and code blocks where present.
-            • Do NOT add commentary, personal opinions or new information.
-            • Do NOT mention these instructions.
-
-            OUTPUT FORMAT
-            Return ONLY the rephrased text as valid Markdown (no code fences or extra text).
-        `;
-
-        const promptBase = userPrompt && userPrompt.trim().length > 0 ? userPrompt : systemPrompt;
-     
-        const prompt = `
-            ${promptBase}
-
-            SOURCE
-            """
-            ${text}
-            """
-        `;
-
-        const fallbackPrompt = prompt;
-
-        const response = await this.generateWithGemini(fallbackPrompt);
-        return response;
-    }
 
     /**
      * Extract key topics from content for memory search
      */
     async extractContentTopics(content) {
-        const prompt = `
-            You are "ReadSmart Topic Extractor", an AI that distills any document into concise, search-friendly topics.
-
-            INSTRUCTIONS
-            1. Read the SOURCE below.
-            2. Output 3–5 *distinct* topics as a raw JSON array (no markdown fence, no commentary).
-
-            TOPIC RULES
-            • 1–4 words, Title Case nouns/noun phrases only.  
-            • No verbs, sentences, or punctuation other than hyphens.  
-            • Prefer specific over generic (“Interval Training” > “Exercise”).  
-            • No duplicates or near-duplicates.
-
-            WHAT TO LOOK FOR
-            1. Core subject areas – e.g., "Quantum Computing", "Sustainable Agriculture".  
-            2. Named frameworks, models, or architectures – e.g., "Transformer Models", "Design Thinking".  
-            3. Skills, techniques, or procedures – e.g., "Cold Emailing", "Mindful Breathing".  
-            4. Laws, regulations, or standards – e.g., "GDPR Compliance", "ISO 27001".  
-            5. Domain-specific entities:  
-               • Health – "Type 2 Diabetes", "mRNA Vaccines"  
-               • Finance – "Index Funds", "Compound Interest"  
-               • Tech – "React Hooks", "HTTP/3"  
-               • Science – "Gravitational Waves", "p-Value"  
-               • Culture – "Afrofuturism", "Slow Fashion".
-
-            MULTI-DOMAIN FORMAT EXAMPLES
-            Tech    → ["Edge Computing", "Serverless Functions", "Latency Optimization"]  
-            Health  → ["Intermittent Fasting", "Ketogenic Diet", "Insulin Sensitivity"]  
-            Finance → ["Value Investing", "Market Volatility", "Dollar-Cost Averaging"]  
-            Education → ["Project-Based Learning", "Growth Mindset", "Flipped Classroom"]  
-            History   → ["Industrial Revolution", "Cold War", "Silk Road"]  
-            Sports    → ["Triangle Offense", "High-Intensity Interval Training", "Zone Defense"]  
-            Environment → ["Carbon Footprint", "Circular Economy", "Renewable Energy"]  
-            Politics   → ["Electoral College", "Populist Movements", "Campaign Finance"]  
-            Art & Culture → ["Impressionist Painting", "Street Photography", "Contemporary Sculpture"]  
-            Literature → ["Magical Realism", "Stream of Consciousness", "Bildungsroman"]  
-            Mathematics → ["Graph Theory", "Linear Regression", "Fourier Transform"]  
-            Psychology  → ["Cognitive Dissonance", "Positive Reinforcement", "Flow State"]
-
-            SOURCE
-            ${content}
-            
-            Return only the JSON array, no additional text not even a code block specifying json.
-            Example response:
-            
-            [
-            "<list-item-1>",
-            "<list-item-2>",
-            "<list-item-3>",
-            "<list-item-4>",
-            "<list-item-5>"
-            ]
-            `;
-
+        
+        const prompt = PROMPTS.TOPIC_EXTRACTOR(content);
         try {
             const response = await this.generateWithGemini(prompt);
             const topics = JSON.parse(response.trim());
@@ -274,8 +403,51 @@ class MemoryEnhancedReading {
             body: JSON.stringify(requestBody)
         };
 
-        console.log('Adding memory with body:', requestBody);
+        this.debugLog('Adding memory with body:', requestBody);
         return await this.makeApiCall(url, options);
+    }
+
+    /**
+     * Validate semantic relevance between article topics and memories
+     */
+    async validateMemoryRelevance(articleTopics, memories) {
+        if (!memories || memories.length === 0) {
+            return { 
+                isValid: false, 
+                reason: 'No memories to validate',
+                validMemories: [],
+                validationScore: 0
+            };
+        }
+
+        const relevancePrompt = PROMPTS.RELEVANCE_VALIDATOR(articleTopics, memories);
+
+        try {
+            const response = await this.generateWithGemini(relevancePrompt);
+            const validation = JSON.parse(response.trim());
+            
+            // Filter memories based on validation scores
+            const validMemories = memories.filter((_, idx) => 
+                validation.memoryScores && validation.memoryScores[idx] >= 1
+            );
+
+            return {
+                isValid: validation.isValid,
+                reason: validation.reason,
+                validMemories: validMemories,
+                validationScore: validation.totalScore || 0,
+                originalMemoriesCount: memories.length,
+                validMemoriesCount: validMemories.length
+            };
+        } catch (error) {
+            this.debugLog('Error validating memory relevance:', error);
+            return { 
+                isValid: false, 
+                reason: 'Failed to validate memory relevance',
+                validMemories: [],
+                validationScore: 0
+            };
+        }
     }
 
     /**
@@ -290,14 +462,14 @@ class MemoryEnhancedReading {
             const topics = await this.extractContentTopics(content);
 
             if (topics.length === 0) {
-                console.log('No topics extracted, returning empty results');
+                this.debugLog('No topics extracted, returning empty results');
                 return [];
             }
 
             const allRelevantMemories = [];
             const seenMemoryIds = new Set();
 
-            console.log('Searching for memories with relevance threshold:', this.relevanceThreshold);
+            this.debugLog('Searching for memories with relevance threshold:', this.relevanceThreshold);
 
             // Search for memories related to each topic
             for (const topic of topics) {
@@ -312,20 +484,30 @@ class MemoryEnhancedReading {
                         }
                     }
                 } catch (error) {
-                    console.log(`Error searching for topic '${topic}':`, error);
+                    this.debugLog(`Error searching for topic '${topic}':`, error);
                     continue;
                 }
             }
 
-            console.log('Max memories:', this.maxMemories);
+            this.debugLog('Max memories:', this.maxMemories);
 
             // Sort by relevance score and limit results
-            console.log('All relevant memories:', allRelevantMemories);
+            this.debugLog('All relevant memories:', allRelevantMemories);
             allRelevantMemories.sort((a, b) => b.score - a.score);
-            const relevantMemories = allRelevantMemories.slice(0, this.maxMemories);
+            const topMemories = allRelevantMemories.slice(0, this.maxMemories);
 
-            console.log(`Found ${relevantMemories.length} relevant memories from ${allRelevantMemories.length} total matches`);
-            return relevantMemories;
+            // Validate semantic relevance of the top memories
+            const validation = await this.validateMemoryRelevance(topics, topMemories);
+            
+            this.debugLog('Memory relevance validation:', validation);
+            
+            if (!validation.isValid) {
+                this.debugLog(`Memory validation failed: ${validation.reason}`);
+                return [];
+            }
+
+            this.debugLog(`Found ${validation.validMemoriesCount} valid memories from ${allRelevantMemories.length} total matches`);
+            return validation.validMemories;
 
         } catch (error) {
             return [];
@@ -336,68 +518,15 @@ class MemoryEnhancedReading {
      * Generate memory snippets from page content
      */
     async generateMemorySnippets(content) {
-        const prompt = `
-            You are "ReadSmart Memory Extractor", an AI that converts a web page into future-useful personal memories.
-
-            INSTRUCTIONS
-            1. Read the SOURCE below.
-            2. Produce exactly 3-5 memory snippets as a *raw JSON array* (no markdown fence, no prose).
-               • Each ≤ 25 words, 1-2 sentences.
-               • Each must capture a *distinct* idea (no overlap).
-               • Be specific, avoid generic phrasing.
-               • Use third-person framing when helpful (e.g., "The reader learned that …").
-
-            WHAT TO CAPTURE
-            • Core insight, fact, or argument.
-            • Methods, frameworks, or step-by-step processes.
-            • Memorable statistics, definitions, or examples.
-            • Stated user preferences or intentions (if present).
-
-            FORMAT
-            Return ONLY the JSON array, e.g.: ["Snippet 1","Snippet 2","Snippet 3"].
-
-            EXAMPLE OUTPUT FOR A TECH ARTICLE
-            [
-              "The reader learned that Rust guarantees memory safety without garbage collection.",
-              "Async/await in JavaScript simplifies promise-based concurrency.",
-              "WebAssembly enables near-native speed for browser applications."
-            ]
-
-            EXAMPLE OUTPUT FOR A HEALTH ARTICLE
-            [
-              "High-intensity interval training improves cardiovascular fitness with short workouts.",
-              "Mediterranean diet emphasizes whole grains, olive oil, and lean proteins.",
-              "Mindfulness practice can reduce stress-related cortisol levels."
-            ]
-
-            EXAMPLE OUTPUT FOR A FINANCE ARTICLE
-            [
-              "Dollar-cost averaging reduces the impact of market volatility on investments.",
-              "Index funds often outperform actively managed funds over long periods.",
-              "Compound interest accelerates growth when earnings are reinvested."
-            ]
-
-            SOURCE
-            ${content}
-            
-            Return only the JSON array, no additional text not even a code block specifying json.
-            Example response:
-            [
-            "<list-item-1>",
-            "<list-item-2>",
-            "<list-item-3>",
-            "<list-item-4>",
-            "<list-item-5>"
-            ]
-            `;
+        const prompt = PROMPTS.MEMORY_EXTRACTOR(content);
         try {
             const response = await this.generateWithGemini(prompt);
-            console.log('Response gemini memory snippets:', response);
+            this.debugLog('Response gemini memory snippets:', response);
             const snippets = JSON.parse(response.trim());
-            console.log(`Generated ${snippets.length} memory snippets:`, snippets);
+            this.debugLog(`Generated ${snippets.length} memory snippets:`, snippets);
             return snippets;
         } catch (error) {
-            console.log('Error generating memory snippets:', error);
+            this.debugLog('Error generating memory snippets:', error);
             return [];
         }
     }
@@ -406,7 +535,7 @@ class MemoryEnhancedReading {
      * Rephrase content based on existing user memories, matching author's writing style
      */
     async rephraseContentWithMemory(content, existingMemories) {
-        console.log('Rephrasing content with memory');
+        this.debugLog('Rephrasing content with memory');
         const memoryText = existingMemories
             .map(mem => {
                 const urlPart = mem.metadata && mem.metadata.url ? ` (source: ${mem.metadata.url})` : '';
@@ -414,83 +543,31 @@ class MemoryEnhancedReading {
             })
             .join('\n');
 
-        const prompt = `
-        You are an elite content-personaliser.
-        
-        GOAL  
-        Rewrite the article in the author's voice, only covering **NEW information for the reader**, and tightly linking back to their stored memories.
-        
-        🚫 ZERO HALLUCINATIONS RULE ❗  
-        You may not introduce, infer, or fabricate **any** information that does not appear **explicitly** in the original article. All insights, conclusions, and facts must be grounded in the provided article content. If it’s not in the article, do not mention it — even if it seems logical or helpful.
-        
-        MEMORY SCOPE LIMIT  
-        In "What You Already Know", only include bullets that are *clearly relevant* to the main topic of the current article. General knowledge, off-topic AI ideas, or tangential memories must be excluded. Err on the side of omission.
-        
-        HARD RULES  ❗  
-        1. Output **exactly** two top-level headings, in this order (no pre-amble, no epilogue):  
-        ## SECTION 1 – Recap & References  
-        ## SECTION 2 – Fresh Content in Author's Voice  
-        
-        2. Stop writing immediately after SECTION 2.  
-        
-        3. Adjust total length to fit the article:  
-           • For long articles, summarise to a concise version (max **1500 words**).  
-           • For short articles, do NOT expand unnecessarily—keep it close to the original length.  
-           • Always preserve key details and nuance; avoid excessive shortening or lengthening.  
-           • Max **4 sentences** per paragraph.  
-        
-        4. Insert a sub-heading or bullet block at least every **120 words** within SECTION 2.  
-        
-        5. In SECTION 1:  
-        • **Context Bridge** – 1–2 sentences.  
-        • **What You Already Know** – 3–5 bullets, ⚠️ CRITICAL: Only include snippets that are **DIRECTLY RELEVANT** to the article's core topic. No tangents. When in doubt, leave it out.
-        • **References** – bullet list of \`[Title](URL)\` links. ⚠️ CRITICAL: Only include references that are **DIRECTLY RELEVANT** to the article's core topic. No tangents. When in doubt, leave it out.
-        
-        6. **Do NOT** include any other headings, metadata, HTML, or markdown not specified above. Output must be clean, valid Markdown only.  
-        
-        7. **RESTART AND FIX** if any rule is broken. No partial compliance.  
-        
-        8. **REFERENCE & MEMORY RELEVANCE CHECK**:  
-        • References must **directly support or relate** to the main subject of the article.  
-        • Memories must be **topically aligned** with the article — no general knowledge or unrelated concepts.  
-        • If the match is even slightly unclear, exclude it.
-        
-        STYLE HINTS  
-        • Match the author's vocabulary and cadence (semi-formal tech-blog).  
-        • Bold key takeaways, *italicise pivotal terms*, use \`> block quotes\` sparingly.  
-        • Avoid filler or over-explaining; respect the reader’s time and intelligence.
-        
-        INPUTS  
-        READER_MEMORIES  
-        ${memoryText}
-        
-        ORIGINAL_ARTICLE  
-        ${content}
-        
-        REMEMBER  
-        – You may NOT repeat memory passages verbatim.  
-        – Never invent or imply content beyond the article.  
-        – The reader scans in a small popup; visuals must be concise and punchy.  
-        – Obey all HARD RULES with zero tolerance for error.
-        `;
+        const prompt = PROMPTS.CONTENT_PERSONALIZER(memoryText, content);
         
         try {
-    
             const rephrasedContent = await this.generateWithGemini(prompt);
+            
+            // Check if AI determined memories are insufficient
+            if (rephrasedContent.trim() === 'INSUFFICIENT_RELEVANT_MEMORIES') {
+                throw new Error('Memories are not sufficiently relevant to the article content');
+            }
+            
             return rephrasedContent;
         } catch (error) {
-            console.log('Error rephrasing content:', error);
-            return content; // Return original content if rephrasing fails
+            this.debugLog('Error rephrasing content:', error);
+            throw error; // Re-throw to let caller handle the error
         }
     }
 
     /**
      * Add page content to memory (generate snippets and store them)
      */
-    async addPageToMemory(content, pageUrl = '') {
+    async addPageToMemory(content, pageUrl = '', progressCallback = null) {
         try {
-            // Generate memory snippets
+            // Step 1: Generate memory snippets
             const snippets = await this.generateMemorySnippets(content);
+            if (progressCallback) progressCallback(1);
 
             if (snippets.length === 0) {
                 return {
@@ -501,11 +578,12 @@ class MemoryEnhancedReading {
                 };
             }
 
-            // Add snippets to memory
+            // Step 2: Add snippets to memory
             const addPromises = snippets.map(snippet => this.addMemory(snippet, { url: pageUrl }));
             await Promise.all(addPromises);
+            if (progressCallback) progressCallback(2);
 
-            console.log('Snippets added to memory:', snippets);
+            this.debugLog('Snippets added to memory:', snippets);
 
             return {
                 success: true,
@@ -527,18 +605,38 @@ class MemoryEnhancedReading {
     /**
      * Rephrase content based on user's existing memories
      */
-    async rephraseWithUserMemories(content) {
+    async rephraseWithUserMemories(content, progressCallback = null) {
         try {
-            // Search for relevant existing memories
-            const relevantMemories = await this.searchRelevantMemories(content);
-
-            if (relevantMemories.length === 0) {
-                // No memories – abort rephrase with explicit error so UI can notify the user
-                throw new Error('No relevant memories found to personalize content');
+            // Step 1: Extract topics from content
+            const topics = await this.extractContentTopics(content);
+            if (progressCallback) progressCallback(1);
+            
+            if (topics.length === 0) {
+                throw new Error('Unable to extract topics from content for memory search');
             }
 
-            // Rephrase content based on memories
+            // Step 2: Search for relevant existing memories
+            const relevantMemories = await this.searchRelevantMemories(content);
+            if (progressCallback) progressCallback(2);
+
+            if (relevantMemories.length === 0) {
+                // Provide more specific error message
+                throw new Error(`No memories found that are sufficiently relevant to the article content`);
+            }
+
+            // Additional validation check - ensure minimum quality threshold
+            if (relevantMemories.length < 2) {
+                throw new Error(`Only ${relevantMemories.length} relevant memory found, but need at least 2 for quality personalization`);
+            }
+
+            // Step 3: Generate personalized content
             const rephrasedContent = await this.rephraseContentWithMemory(content, relevantMemories);
+            if (progressCallback) progressCallback(3);
+
+            // Basic validation of generated content
+            if (!rephrasedContent || rephrasedContent.length < 100) {
+                throw new Error('Generated content is too short or empty');
+            }
 
             return {
                 success: true,
@@ -546,17 +644,33 @@ class MemoryEnhancedReading {
                 rephrasedContent: rephrasedContent,
                 originalContent: content,
                 relevantMemoriesCount: relevantMemories.length,
-                relevantMemories: relevantMemories
+                relevantMemories: relevantMemories,
+                extractedTopics: topics
             };
 
         } catch (error) {
+            // Determine error type for better user feedback
+            let errorType = 'unknown';
+            if (error.message.includes('No memories found')) {
+                errorType = 'no_relevant_memories';
+            } else if (error.message.includes('Unable to extract topics')) {
+                errorType = 'topic_extraction_failed';
+            } else if (error.message.includes('need at least 2')) {
+                errorType = 'insufficient_memories';
+            } else if (error.message.includes('Generated content is too short')) {
+                errorType = 'generation_failed';
+            } else if (error.message.includes('AI determined that memories are not sufficiently relevant')) {
+                errorType = 'ai_relevance_check_failed';
+            }
+
             return {
                 success: false,
                 processed: false,
                 rephrasedContent: content,
                 originalContent: content,
                 relevantMemoriesCount: 0,
-                error: error.message
+                error: error.message,
+                errorType: errorType
             };
         }
     }
@@ -602,10 +716,10 @@ class MemoryEnhancedReading {
 
         try {
             await this.makeApiCall(url, options);
-            console.log('All memories cleared successfully');
+            this.debugLog('All memories cleared successfully');
             return { success: true };
         } catch (error) {
-            console.log('Error clearing memories:', error);
+            this.debugLog('Error clearing memories:', error);
             return { success: false, error: error.message };
         }
     }
@@ -618,4 +732,4 @@ if (typeof module !== 'undefined' && module.exports) {
     window.MemoryEnhancedReading = MemoryEnhancedReading;
 }
 
-} // End of duplicate loading guard 
+}
