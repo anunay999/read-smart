@@ -167,7 +167,7 @@
           success: false, 
           processed: false, 
           error: error.message,
-          rephrasedContent: text, // fallback to original
+          rephrasedContent: null,
           originalContent: text,
           relevantMemoriesCount: 0
         };

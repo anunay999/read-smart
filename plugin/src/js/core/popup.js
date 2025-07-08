@@ -1,7 +1,6 @@
 // Wait for DOM to be ready
 document.addEventListener('DOMContentLoaded', () => {
   // Toggle elements
-  const readerModeToggle = document.getElementById('readerModeToggle');
   const statusText = document.getElementById('statusText');
   const rephraseToggle = document.getElementById('rephraseToggle');
   const memoryButton = document.getElementById('memoryButton');
@@ -34,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const forceAddButton = document.getElementById('forceAdd');
   let pendingTabId = null;
   
-  if (!readerModeToggle || !statusText || !rephraseToggle || !configButton || !configModal || !memoryButton) {
+  if (!statusText || !rephraseToggle || !configButton || !configModal || !memoryButton) {
     console.error('Required elements not found!');
     return;
   }
@@ -71,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
       // Don't set toggle states from storage - they should reflect actual page state
       // Toggle states will be set by checkInitialState() based on actual content script state
       rephraseToggle.checked = false;
-      readerModeToggle.checked = false;
       
       // Update UI based on current API key status
       updateAllUIStates();
@@ -97,10 +95,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Update API key status indicators
     updateApiKeyStatus(geminiStatus, hasGeminiKey);
     updateApiKeyStatus(mem0Status, hasMem0Key);
-    
-    // Reader Mode is always available (no API key required)
-    readerModeToggle.disabled = false;
-    document.querySelector('.feature-item:nth-child(1)').style.opacity = '1';
     
     // Smart Rephrase requires Gemini API key
     rephraseToggle.disabled = !hasGeminiKey;
@@ -159,9 +153,8 @@ document.addEventListener('DOMContentLoaded', () => {
     duplicateModal.style.display = 'none';
     pendingTabId = null;
     // Restore status banner to current mode
-    const currentMode = readerModeToggle.checked ? 'Smart reading mode active' : 'Normal reading mode';
-    statusText.textContent = currentMode;
-    statusText.className = readerModeToggle.checked ? 'status active' : 'status';
+    statusText.textContent = 'Normal mode';
+    statusText.className = 'status';
   }
 
   // Save API configuration
@@ -243,8 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
       statusText.className = 'status active';
 
       setTimeout(() => {
-        statusText.textContent = readerModeToggle.checked ? 'Smart reading mode active' : 'Normal reading mode';
-        statusText.className = readerModeToggle.checked ? 'status active' : 'status';
+        statusText.textContent = rephraseToggle.checked ? 'Smart Rephrase active' : 'Normal mode';
+        statusText.className = rephraseToggle.checked ? 'status active' : 'status';
       }, 2000);
 
     } catch (error) {
@@ -312,9 +305,9 @@ document.addEventListener('DOMContentLoaded', () => {
         statusText.className = 'status active';
         
         setTimeout(() => {
-          const currentMode = readerModeToggle.checked ? 'Smart reading mode active' : 'Normal reading mode';
+          const currentMode = rephraseToggle.checked ? 'Smart Rephrase active' : 'Normal mode';
           statusText.textContent = currentMode;
-          statusText.className = readerModeToggle.checked ? 'status active' : 'status';
+          statusText.className = rephraseToggle.checked ? 'status active' : 'status';
         }, 300);
       } else {
         throw new Error(result.error || 'Failed to add page to memory');
@@ -381,9 +374,9 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Reset status after a delay
       setTimeout(() => {
-        const currentMode = readerModeToggle.checked ? 'Smart reading mode active' : 'Normal reading mode';
+        const currentMode = rephraseToggle.checked ? 'Smart Rephrase active' : 'Normal mode';
         statusText.textContent = currentMode;
-        statusText.className = readerModeToggle.checked ? 'status active' : 'status';
+        statusText.className = rephraseToggle.checked ? 'status active' : 'status';
       }, 5000);
       
       // Show generic alert only if we haven't shown a specific one
@@ -447,69 +440,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Handle rephrase toggle
   rephraseToggle.addEventListener('change', async () => {
     if (rephraseToggle.checked) {
-      // Disable reader mode when smart rephrase is enabled
-      readerModeToggle.checked = false;
       await enableSmartRephrase();
     } else {
       await disableSmartRephrase();
     }
   });
-
-  // Handle reader mode toggle
-  readerModeToggle.addEventListener('change', async () => {
-    if (readerModeToggle.checked) {
-      // Disable smart rephrase when reader mode is enabled
-      rephraseToggle.checked = false;
-      await enableReaderMode();
-    } else {
-      await disableReaderMode();
-    }
-  });
-
-  // Enable plain reader mode
-  async function enableReaderMode() {
-    try {
-      const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
-      if (!tab) return;
-
-      // Inject required scripts
-      await injectScripts(tab.id);
-      
-      // Enable plain reader mode
-      const response = await chrome.tabs.sendMessage(tab.id, {
-        action: "enableReaderMode"
-      });
-
-      if (response && response.success) {
-        statusText.textContent = 'Reader mode active';
-        statusText.className = 'status active';
-      } else {
-        throw new Error(response?.error || 'Failed to enable reader mode');
-      }
-    } catch (error) {
-      console.error('Error enabling reader mode:', error);
-      readerModeToggle.checked = false;
-      statusText.textContent = 'Error enabling reader mode';
-      statusText.className = 'status';
-    }
-  }
-
-  // Disable reader mode
-  async function disableReaderMode() {
-    try {
-      const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
-      if (!tab) return;
-
-      await chrome.tabs.sendMessage(tab.id, {
-        action: "disableReaderMode"
-      });
-
-      statusText.textContent = 'Normal reading mode';
-      statusText.className = 'status';
-    } catch (error) {
-      console.error('Error disabling reader mode:', error);
-    }
-  }
 
   // Enable smart rephrase
   async function enableSmartRephrase() {
@@ -560,6 +495,9 @@ document.addEventListener('DOMContentLoaded', () => {
         errorMessage = 'API key issue - check settings';
       } else if (error.message.includes('not properly initialized')) {
         errorMessage = 'Initialization error - try refreshing page';
+      } else if (error.message.includes('No relevant memories')) {
+        errorMessage = 'No relevant memories found - Cannot personalize article';
+        alert(errorMessage);
       } else if (error.message.includes('network') || error.message.includes('fetch')) {
         errorMessage = 'Network error - check connection';
       }
@@ -579,7 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
         action: "disableSmartRephrase"
       });
 
-      statusText.textContent = 'Normal reading mode';
+      statusText.textContent = 'Normal mode';
       statusText.className = 'status';
     } catch (error) {
       console.error('Error disabling smart rephrase:', error);
@@ -633,22 +571,18 @@ document.addEventListener('DOMContentLoaded', () => {
         ]);
         
         if (response) {
-          if (response.readerModeActive) {
-            readerModeToggle.checked = true;
-            statusText.textContent = 'Reader mode active';
-            statusText.className = 'status active';
-          } else if (response.smartRephraseActive) {
+          if (response.smartRephraseActive) {
             rephraseToggle.checked = true;
             statusText.textContent = 'Smart rephrase active';
             statusText.className = 'status active';
           } else {
             // Content script is loaded but no special mode is active
-            statusText.textContent = 'Normal reading mode';
+            statusText.textContent = 'Normal mode';
             statusText.className = 'status';
           }
         } else {
           // No response from content script - fresh page state
-          statusText.textContent = 'Normal reading mode';
+          statusText.textContent = 'Normal mode';
           statusText.className = 'status';
         }
       }
@@ -656,7 +590,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Error checking initial state, content script not loaded or page just loaded
       // This is normal for fresh page loads - default to normal state
       console.log('Content script not loaded yet or page just loaded:', error.message);
-      statusText.textContent = 'Normal reading mode';
+      statusText.textContent = 'Normal mode';
       statusText.className = 'status';
     }
   }

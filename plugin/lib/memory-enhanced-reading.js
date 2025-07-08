@@ -416,52 +416,62 @@ class MemoryEnhancedReading {
 
         const prompt = `
         You are an elite content-personaliser.
-
+        
         GOAL  
-        Rewrite the article in the author's voice, only covering NEW information for the reader, and tightly link back to their stored memories.
-
-        HARD RULES  ❗
+        Rewrite the article in the author's voice, only covering **NEW information for the reader**, and tightly linking back to their stored memories.
+        
+        🚫 ZERO HALLUCINATIONS RULE ❗  
+        You may not introduce, infer, or fabricate **any** information that does not appear **explicitly** in the original article. All insights, conclusions, and facts must be grounded in the provided article content. If it’s not in the article, do not mention it — even if it seems logical or helpful.
+        
+        MEMORY SCOPE LIMIT  
+        In "What You Already Know", only include bullets that are *clearly relevant* to the main topic of the current article. General knowledge, off-topic AI ideas, or tangential memories must be excluded. Err on the side of omission.
+        
+        HARD RULES  ❗  
         1. Output **exactly** two top-level headings, in this order (no pre-amble, no epilogue):  
         ## SECTION 1 – Recap & References  
         ## SECTION 2 – Fresh Content in Author's Voice  
+        
         2. Stop writing immediately after SECTION 2.  
-        3. Max **900 words** total; max **3 sentences** per paragraph.  
+        
+        3. Adjust total length to fit the article:  
+           • For long articles, summarise to a concise version (max **1500 words**).  
+           • For short articles, do NOT expand unnecessarily—keep it close to the original length.  
+           • Always preserve key details and nuance; avoid excessive shortening or lengthening.  
+           • Max **4 sentences** per paragraph.  
+        
         4. Insert a sub-heading or bullet block at least every **120 words** within SECTION 2.  
+        
         5. In SECTION 1:  
-        • **Context Bridge** – 1-2 sentences.  
-        • **What You Already Know** – 3-5 bullets.  
-        • **References** – bullet list of \`[Title](URL)\` links. ⚠️ CRITICAL: Only include references that are DIRECTLY RELEVANT to the article's main topic. If a reference is about unrelated topics (e.g., IPOs, business advice, or general AI when the article is about Go performance), EXCLUDE IT. Better to have fewer relevant references than many irrelevant ones.
-        6. No other headings, no metadata ("8 min read"), no HTML; output must be valid Markdown.  
-        7. If any rule is broken, RESTART and fix before finalising.
-        8. REFERENCE RELEVANCE CHECK: Before including any reference, verify it directly relates to the article's core subject. Irrelevant references = immediate failure.
-
+        • **Context Bridge** – 1–2 sentences.  
+        • **What You Already Know** – 3–5 bullets, ⚠️ CRITICAL: Only include snippets that are **DIRECTLY RELEVANT** to the article's core topic. No tangents. When in doubt, leave it out.
+        • **References** – bullet list of \`[Title](URL)\` links. ⚠️ CRITICAL: Only include references that are **DIRECTLY RELEVANT** to the article's core topic. No tangents. When in doubt, leave it out.
+        
+        6. **Do NOT** include any other headings, metadata, HTML, or markdown not specified above. Output must be clean, valid Markdown only.  
+        
+        7. **RESTART AND FIX** if any rule is broken. No partial compliance.  
+        
+        8. **REFERENCE & MEMORY RELEVANCE CHECK**:  
+        • References must **directly support or relate** to the main subject of the article.  
+        • Memories must be **topically aligned** with the article — no general knowledge or unrelated concepts.  
+        • If the match is even slightly unclear, exclude it.
+        
         STYLE HINTS  
         • Match the author's vocabulary and cadence (semi-formal tech-blog).  
-        • Bold key take-aways, italicise pivotal terms, use \`> block-quotes\` sparingly.  
-        • Replace filler like "Let's be real" unless in the original.
-
+        • Bold key takeaways, *italicise pivotal terms*, use \`> block quotes\` sparingly.  
+        • Avoid filler or over-explaining; respect the reader’s time and intelligence.
+        
         INPUTS  
         READER_MEMORIES  
         ${memoryText}
-
+        
         ORIGINAL_ARTICLE  
         ${content}
-
-        REMEMBER  
-        – Do NOT repeat memory passages verbatim.  
-        – The reader scans in a small popup; keep visuals punchy.  
-        – Comply with all HARD RULES.
-        – References must be topically relevant or they will be considered a violation.
-        You will be eliminated if you do not follow these rules.
-
-        FILTERING MEMORY  
-        • Ignore any memory that is not obviously related to the article's subject – better to omit than force relevance.  
-        • Paraphrase memory ideas; never quote them verbatim.
         
-        FILTERING REFERENCES
-        • Only include references that directly support or relate to the article's main topic.
-        • Example: For a Go performance article, include Go docs, benchmarking guides, compiler optimizations - NOT business books, IPO news, or general AI tools.
-        • When in doubt, exclude the reference.
+        REMEMBER  
+        – You may NOT repeat memory passages verbatim.  
+        – Never invent or imply content beyond the article.  
+        – The reader scans in a small popup; visuals must be concise and punchy.  
+        – Obey all HARD RULES with zero tolerance for error.
         `;
         
         try {
@@ -523,14 +533,8 @@ class MemoryEnhancedReading {
             const relevantMemories = await this.searchRelevantMemories(content);
 
             if (relevantMemories.length === 0) {
-                return {
-                    success: false,
-                    processed: false,
-                    rephrasedContent: content,
-                    originalContent: content,
-                    relevantMemoriesCount: 0,
-                    message: 'No relevant memories found to personalize content'
-                };
+                // No memories – abort rephrase with explicit error so UI can notify the user
+                throw new Error('No relevant memories found to personalize content');
             }
 
             // Rephrase content based on memories

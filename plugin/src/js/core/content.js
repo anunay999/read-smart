@@ -45,6 +45,8 @@ class ReadSmartState {
     this.geminiApiKey = null;
     this.originalArticle = null;
     this.rephrasedContent = null;
+    this.noRelevantMemoriesFound = false; // Tracks if memory search failed for current page
+    this.noMemoryPageUrl = null;
     // Advanced configuration defaults
     this.config = {
       systemPrompt: '',
@@ -70,6 +72,8 @@ class ReadSmartState {
     this.overlay = null;
     this.originalArticle = null;
     this.rephrasedContent = null;
+    this.noRelevantMemoriesFound = false;
+    this.noMemoryPageUrl = null;
   }
 }
 
@@ -91,6 +95,10 @@ async function initializeContentScript() {
     state.config.maxMemories = configManager.get('maxMemories');
     state.config.geminiModel = configManager.get('geminiModel');
     state.config.debug = configManager.get('debugMode');
+
+    // Reset memory-related flags for a fresh page load
+    state.noRelevantMemoriesFound = false;
+    state.noMemoryPageUrl = null;
 
     chrome.runtime.sendMessage({ action: 'contentScriptReady' });
     
@@ -233,6 +241,16 @@ async function enablePlainReaderMode() {
 }
 
 async function enableSmartRephraseMode() {
+  const currentUrl = window.location.href;
+  if (state.noRelevantMemoriesFound && state.noMemoryPageUrl === currentUrl) {
+    alert('No relevant memories found – cannot personalise article');
+    throw new Error('No relevant memories found');
+  } else if (state.noRelevantMemoriesFound && state.noMemoryPageUrl !== currentUrl) {
+    // Reset flag for new page
+    state.noRelevantMemoriesFound = false;
+    state.noMemoryPageUrl = null;
+  }
+
   try {
     const steps = ['Preparing page', 'Generating with memory', 'Done'];
     await showProgressOverlay(steps);
@@ -290,8 +308,15 @@ async function enableSmartRephraseMode() {
       });
     }
   } catch (error) {
+    if (error.message && error.message.includes('No relevant memories')) {
+      state.noRelevantMemoriesFound = true;
+      state.noMemoryPageUrl = window.location.href;
+      try { alert('No relevant memories found – cannot personalise article'); } catch (_) {}
+    }
     cleanupOverlays();
     hideProgressOverlay();
+    // Ensure original page is visible again
+    try { restoreOriginalContent(); } catch (_) {}
     console.error('Error in enableSmartRephraseMode:', error);
     throw error;
   }
@@ -620,8 +645,7 @@ async function tryRephraseWithMemories(article) {
   try {
     // Check if memoryManager is properly initialized
     if (!memoryManager || !memoryManager.reader) {
-      console.error('Memory manager not properly initialized, falling back to Gemini');
-      return await rephraseWithGeminiFallback(article.textContent);
+      throw new Error('Memory manager not properly initialized');
     }
 
     const result = await memoryManager.rephraseWithUserMemories(article.textContent);
@@ -629,12 +653,14 @@ async function tryRephraseWithMemories(article) {
       console.log('Successfully rephrased with memories');
       return result.rephrasedContent;
     }
-  } catch (error) {
-    console.error('Memory rephrasing failed, falling back to Gemini:', error);
-  }
 
-  console.log('Using fallback Gemini rephrasing');
-  return await rephraseWithGeminiFallback(article.textContent);
+    // If not successful, propagate error
+    throw new Error(result.error || 'Failed to rephrase with memories');
+  } catch (error) {
+    console.error('Memory rephrasing failed:', error);
+    // Propagate the error up so caller can handle alert / rollback
+    throw error;
+  }
 }
 
 async function rephraseWithGeminiFallback(text) {
